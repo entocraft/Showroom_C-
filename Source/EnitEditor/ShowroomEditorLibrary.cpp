@@ -9,6 +9,17 @@
 #include "UObject/Package.h"
 #include "WidgetBlueprint.h"
 #include "WidgetBlueprintFactory.h"
+#include "UI/ExperienceSelectorWidget.h"
+#include "UI/InfoPanelWidget.h"
+#include "Interaction/DetectionZone.h"
+#include "ContentStreaming.h"
+#include "Editor.h"
+#include "EngineUtils.h"
+#include "Engine/TextureRenderTarget2D.h"
+#include "HAL/FileManager.h"
+#include "ImageUtils.h"
+#include "RenderingThread.h"
+#include "Slate/WidgetRenderer.h"
 
 namespace
 {
@@ -74,6 +85,76 @@ UObject* UShowroomEditorLibrary::CreateWidgetBlueprintFromLayout(const FString& 
 	FKismetEditorUtilities::CompileBlueprint(Blueprint);
 	Blueprint->MarkPackageDirty();
 	return Blueprint;
+}
+
+bool UShowroomEditorLibrary::RenderWidgetPreview(TSubclassOf<UUserWidget> WidgetClass, FVector2D Size, const FString& FilePath, int32 Page)
+{
+	UWorld* World = GEditor ? GEditor->GetEditorWorldContext().World() : nullptr;
+	if (!World || !WidgetClass || Size.X < 1.f || Size.Y < 1.f)
+	{
+		UE_LOG(LogTemp, Error, TEXT("RenderWidgetPreview : monde, classe ou taille invalide."));
+		return false;
+	}
+
+	// La 1re zone d'experience du niveau (meme ordre que l'ecran d'accueil).
+	ADetectionZone* FirstZone = nullptr;
+	for (TActorIterator<ADetectionZone> It(World); It; ++It)
+	{
+		if (It->bHasExperience && It->bShowInSelector
+			&& (!FirstZone || It->SelectorOrder < FirstZone->SelectorOrder
+				|| (It->SelectorOrder == FirstZone->SelectorOrder && It->Info.Title.ToString() < FirstZone->Info.Title.ToString())))
+		{
+			FirstZone = *It;
+		}
+	}
+
+	UUserWidget* Widget = CreateWidget<UUserWidget>(World, WidgetClass);
+	if (!Widget)
+	{
+		return false;
+	}
+	if (UInfoPanelWidget* Panel = Cast<UInfoPanelWidget>(Widget))
+	{
+		if (FirstZone)
+		{
+			Panel->SetInfo(FirstZone->Info);
+			Panel->SetActionButton(true, FirstZone->StartButtonText);
+		}
+	}
+
+	TSharedRef<SWidget> SlateWidget = Widget->TakeWidget(); // construit le widget (NativeConstruct)
+
+	if (UExperienceSelectorWidget* Hub = Cast<UExperienceSelectorWidget>(Widget))
+	{
+		if (Page == static_cast<int32>(EShowroomHubPage::Sheet))
+		{
+			Hub->OpenSheet(FirstZone);
+		}
+		else
+		{
+			Hub->ShowPage(static_cast<EShowroomHubPage>(FMath::Clamp(Page, 0, 4)));
+		}
+	}
+
+	// Images en pleine resolution, puis plusieurs passes de dessin (la mise en page se stabilise).
+	IStreamingManager::Get().StreamAllResources(10.f);
+	FWidgetRenderer Renderer(/*bUseGammaCorrection*/ true, /*bClearTarget*/ true);
+	UTextureRenderTarget2D* Target = Renderer.DrawWidget(SlateWidget, Size);
+	for (int32 Pass = 0; Pass < 4 && Target; ++Pass)
+	{
+		Renderer.DrawWidget(Target, SlateWidget, Size, 0.016f);
+	}
+	FlushRenderingCommands();
+	if (!Target)
+	{
+		return false;
+	}
+
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(FilePath), true);
+	TUniquePtr<FArchive> File(IFileManager::Get().CreateFileWriter(*FilePath));
+	const bool bOk = File && FImageUtils::ExportRenderTarget2DAsPNG(Target, *File);
+	UE_LOG(LogTemp, Display, TEXT("[Apercu] %s -> %s (%s)"), *GetNameSafe(WidgetClass), *FilePath, bOk ? TEXT("ok") : TEXT("ECHEC"));
+	return bOk;
 }
 
 TArray<FString> UShowroomEditorLibrary::DescribeWidgetBlueprint(UObject* WidgetBlueprint)

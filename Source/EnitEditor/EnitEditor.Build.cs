@@ -23,7 +23,8 @@ public class EnitEditor : ModuleRules
 			"AssetTools",
 			"Kismet",
 			"Slate",
-			"SlateCore"
+			"SlateCore",
+			"RenderCore"
 		});
 	}
 }

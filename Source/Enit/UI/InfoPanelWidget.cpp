@@ -1,4 +1,5 @@
 #include "UI/InfoPanelWidget.h"
+#include "UI/ShowroomStyle.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
@@ -6,20 +7,24 @@
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
 #include "Components/SizeBox.h"
-#include "Components/Spacer.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
 
-namespace
+UInfoPanelWidget::UInfoPanelWidget(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-	void SetFontSize(UTextBlock* Text, int32 Size)
-	{
-		FSlateFontInfo Font = Text->GetFont();
-		Font.Size = Size;
-		Text->SetFont(Font);
-	}
+	// Charte de la maquette Figma (voir UI/ShowroomStyle.h).
+	BackgroundColor = ShowroomStyle::Background();
+	TextColor = ShowroomStyle::TextMain();
+	SubtitleColor = ShowroomStyle::TextMuted();
+	ButtonColor = ShowroomStyle::Accent();
+	NavButtonColor = ShowroomStyle::Surface();
+	TitleFontSize = 42;
+	SubtitleFontSize = 22;
+	DescriptionFontSize = 21;
+	ButtonFontSize = 26;
 }
 
 void UInfoPanelWidget::NativeConstruct()
@@ -67,9 +72,32 @@ void UInfoPanelWidget::SetInfo(const FShowroomInfo& NewInfo)
 
 void UInfoPanelWidget::Refresh()
 {
-	if (TitleText)       TitleText->SetText(Info.Title);
+	if (TitleText)       TitleText->SetText(Info.Title.ToUpper());
 	if (SubtitleText)    SubtitleText->SetText(Info.Subtitle);
 	if (DescriptionText) DescriptionText->SetText(Info.Description);
+
+	// Pastille et ligne "Domaine • Duree • Lieu" : cachees si vides.
+	if (TagText)
+	{
+		TagText->SetText(Info.Tag.ToUpper());
+	}
+	if (UWidget* TagTarget = TagBox ? TagBox.Get() : static_cast<UWidget*>(TagText.Get()))
+	{
+		TagTarget->SetVisibility(Info.Tag.IsEmpty() ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+	if (MetaText)
+	{
+		TArray<FString> Parts;
+		for (const FText* Part : { &Info.Domain, &Info.Duration, &Info.Location })
+		{
+			if (!Part->IsEmpty())
+			{
+				Parts.Add(Part->ToString());
+			}
+		}
+		MetaText->SetText(FText::FromString(FString::Join(Parts, TEXT("   •   "))));
+		MetaText->SetVisibility(Parts.Num() > 0 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	}
 
 	if (ActionButton)
 	{
@@ -100,120 +128,122 @@ void UInfoPanelWidget::Refresh()
 
 	if (PhotoImage)
 	{
+		// Sans photo, on cache aussi son cadre (le texte prend toute la largeur).
+		UWidget* Frame = Cast<USizeBox>(PhotoImage->GetParent()) ? static_cast<UWidget*>(PhotoImage->GetParent()) : static_cast<UWidget*>(PhotoImage.Get());
 		if (Info.Photo)
 		{
-			PhotoImage->SetBrushFromTexture(Info.Photo);
-			PhotoImage->SetVisibility(ESlateVisibility::Visible);
+			PhotoImage->SetBrush(ShowroomStyle::RoundedImageBrush(Info.Photo, ShowroomStyle::RadiusCard, PhotoSize));
+			Frame->SetVisibility(ESlateVisibility::HitTestInvisible);
 		}
 		else
 		{
-			PhotoImage->SetVisibility(ESlateVisibility::Collapsed);
+			Frame->SetVisibility(ESlateVisibility::Collapsed);
 		}
 	}
 }
 
 void UInfoPanelWidget::BuildDefaultLayout()
 {
-	//  Border (fond)
-	//   └ VerticalBox
-	//       ├ HorizontalBox
-	//       │   ├ SizeBox > Image (photo)
-	//       │   └ VerticalBox
-	//       │       ├ Titre
-	//       │       └ Sous titre
-	//       ├ Spacer
-	//       ├ Description
-	//       ├ Navigation des etapes : [< Precedent]  Etape 2 / 4  [Suivant >]
-	//       └ Bouton d'action ("Lancer l'experience")
+	using namespace ShowroomStyle;
 
-	UBorder* Root = WidgetTree->ConstructWidget<UBorder>(UBorder::StaticClass(), TEXT("Background"));
-	Root->SetBrush(MakeRoundedBrush(BackgroundColor, 32.f));
-	Root->SetPadding(FMargin(32.f));
+	//  Border "Background"
+	//   └ HorizontalBox
+	//       ├ SizeBox "PhotoBox" > PhotoImage (coins arrondis)
+	//       └ VerticalBox "Texts"
+	//           ├ TagBox > TagText
+	//           ├ TitleText, SubtitleText, MetaText
+	//           ├ Border "DescriptionBox" > DescriptionText
+	//           ├ StepNav : [< Precedent]  Etape 2 / 4  [Suivant >]
+	//           └ ActionButton ("Lancer l'experience")
+	UBorder* Root = MakeBox(WidgetTree, TEXT("Background"), BackgroundColor, RadiusPanel, FMargin(26.f));
 	WidgetTree->RootWidget = Root;
 
-	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Column"));
-	Root->SetContent(Column);
-
-	// En-tete : photo + titres
-	UHorizontalBox* Header = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Header"));
-	Column->AddChildToVerticalBox(Header);
+	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Row"));
+	Root->SetContent(Row);
 
 	USizeBox* PhotoBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("PhotoBox"));
 	PhotoBox->SetWidthOverride(PhotoSize.X);
-	PhotoBox->SetHeightOverride(PhotoSize.Y);
 	PhotoImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("PhotoImage"));
+	PhotoImage->SetBrush(RoundedImageBrush(nullptr, RadiusCard, PhotoSize));
 	PhotoBox->SetContent(PhotoImage);
-	if (UHorizontalBoxSlot* PhotoSlot = Header->AddChildToHorizontalBox(PhotoBox))
+	if (UHorizontalBoxSlot* PhotoSlot = Row->AddChildToHorizontalBox(PhotoBox))
 	{
-		PhotoSlot->SetPadding(FMargin(0.f, 0.f, 24.f, 0.f));
-		PhotoSlot->SetVerticalAlignment(VAlign_Top);
+		PhotoSlot->SetPadding(FMargin(0.f, 0.f, 26.f, 0.f));
+		PhotoSlot->SetVerticalAlignment(VAlign_Fill);
 	}
 
-	UVerticalBox* Titles = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Titles"));
-	if (UHorizontalBoxSlot* TitlesSlot = Header->AddChildToHorizontalBox(Titles))
+	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Texts"));
+	if (UHorizontalBoxSlot* ColumnSlot = Row->AddChildToHorizontalBox(Column))
 	{
-		TitlesSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
-		TitlesSlot->SetVerticalAlignment(VAlign_Center);
+		ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	}
 
-	TitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("TitleText"));
-	SetFontSize(TitleText, TitleFontSize);
-	TitleText->SetColorAndOpacity(FSlateColor(TextColor));
-	TitleText->SetAutoWrapText(true);
-	Titles->AddChildToVerticalBox(TitleText);
+	UHorizontalBox* TagRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TagRow"));
+	if (UVerticalBoxSlot* TagSlot = Column->AddChildToVerticalBox(TagRow))
+	{
+		TagSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 6.f));
+	}
+	UBorder* Tag = MakeBox(WidgetTree, TEXT("TagBox"), ShowroomStyle::Tag(), 999.f, FMargin(14.f, 5.f));
+	TagText = ShowroomStyle::MakeText(WidgetTree, TEXT("TagText"), FText::FromString(TEXT("EXPÉRIENCE")), 16, TextColor, TEXT("Bold"), false);
+	Tag->SetContent(TagText);
+	TagBox = Tag;
+	TagRow->AddChildToHorizontalBox(Tag);
 
-	SubtitleText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("SubtitleText"));
-	SetFontSize(SubtitleText, SubtitleFontSize);
-	SubtitleText->SetColorAndOpacity(FSlateColor(SubtitleColor));
-	SubtitleText->SetAutoWrapText(true);
-	Titles->AddChildToVerticalBox(SubtitleText);
+	TitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("TitleText"), FText::FromString(TEXT("TITRE")), TitleFontSize, TextColor, TEXT("Bold"));
+	Column->AddChildToVerticalBox(TitleText);
+	SubtitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("SubtitleText"), FText::FromString(TEXT("Sous-titre")), SubtitleFontSize, SubtitleColor);
+	Column->AddChildToVerticalBox(SubtitleText);
+	MetaText = ShowroomStyle::MakeText(WidgetTree, TEXT("MetaText"), FText::FromString(TEXT("Domaine  •  Durée  •  Lieu")), 18, AccentText(), TEXT("Bold"));
+	if (UVerticalBoxSlot* MetaSlot = Column->AddChildToVerticalBox(MetaText))
+	{
+		MetaSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
+	}
 
-	USpacer* Gap = WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass(), TEXT("Gap"));
-	Gap->SetSize(FVector2D(1.f, 24.f));
-	Column->AddChildToVerticalBox(Gap);
-
-	DescriptionText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("DescriptionText"));
-	SetFontSize(DescriptionText, DescriptionFontSize);
-	DescriptionText->SetColorAndOpacity(FSlateColor(TextColor));
-	DescriptionText->SetAutoWrapText(true);
-	if (UVerticalBoxSlot* DescSlot = Column->AddChildToVerticalBox(DescriptionText))
+	UBorder* DescriptionBox = MakeBox(WidgetTree, TEXT("DescriptionBox"), SurfaceDeep(), RadiusCard, FMargin(20.f, 16.f));
+	DescriptionBox->SetVerticalAlignment(VAlign_Top);
+	DescriptionText = ShowroomStyle::MakeText(WidgetTree, TEXT("DescriptionText"), FText::FromString(TEXT("Description")), DescriptionFontSize, TextColor);
+	DescriptionBox->SetContent(DescriptionText);
+	if (UVerticalBoxSlot* DescSlot = Column->AddChildToVerticalBox(DescriptionBox))
 	{
 		DescSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		DescSlot->SetPadding(FMargin(0.f, 16.f, 0.f, 0.f));
 	}
 
 	// Navigation des etapes (cachee hors experience)
 	UHorizontalBox* Nav = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StepNav"));
 	StepNav = Nav;
-	PreviousButton = MakeButton(WidgetTree, TEXT("PreviousButton"), FText::FromString(TEXT("< Pr\u00E9c\u00E9dent")), ButtonFontSize, NavButtonColor, TextColor);
+	PreviousButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("PreviousButton"), NavButtonColor, SurfaceHover(), 999.f, FMargin(22.f, 10.f));
+	PreviousButton->SetContent(ShowroomStyle::MakeText(WidgetTree, TEXT("PreviousButtonText"), FText::FromString(TEXT("‹  Précédent")), ButtonFontSize - 4, TextColor, TEXT("Bold"), false));
 	if (UHorizontalBoxSlot* PrevSlot = Nav->AddChildToHorizontalBox(PreviousButton))
 	{
 		PrevSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	StepText = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("StepText"));
-	SetFontSize(StepText, ButtonFontSize);
-	StepText->SetColorAndOpacity(FSlateColor(SubtitleColor));
+	StepText = ShowroomStyle::MakeText(WidgetTree, TEXT("StepText"), FText::FromString(TEXT("Étape 1 / 4")), ButtonFontSize - 4, SubtitleColor, TEXT("Bold"), false);
 	StepText->SetJustification(ETextJustify::Center);
 	if (UHorizontalBoxSlot* StepSlot = Nav->AddChildToHorizontalBox(StepText))
 	{
 		StepSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		StepSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	NextButton = MakeButton(WidgetTree, TEXT("NextButton"), FText::FromString(TEXT("Suivant >")), ButtonFontSize, ButtonColor, TextColor);
+	NextButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("NextButton"), ButtonColor, AccentHover(), 999.f, FMargin(22.f, 10.f));
+	NextButton->SetContent(ShowroomStyle::MakeText(WidgetTree, TEXT("NextButtonText"), FText::FromString(TEXT("Suivant  ›")), ButtonFontSize - 4, TextColor, TEXT("Bold"), false));
 	if (UHorizontalBoxSlot* NextSlot = Nav->AddChildToHorizontalBox(NextButton))
 	{
 		NextSlot->SetVerticalAlignment(VAlign_Center);
 	}
 	if (UVerticalBoxSlot* NavSlot = Column->AddChildToVerticalBox(Nav))
 	{
-		NavSlot->SetPadding(FMargin(0.f, 16.f, 0.f, 0.f));
+		NavSlot->SetPadding(FMargin(0.f, 14.f, 0.f, 0.f));
 	}
 
-	// Bouton d'action, centre en bas
-	ActionButton = MakeButton(WidgetTree, TEXT("ActionButton"), FText::GetEmpty(), ButtonFontSize, ButtonColor, TextColor);
-	ActionButtonText = Cast<UTextBlock>(ActionButton->GetContent());
+	// Bouton d'action : toute la largeur, comme "Lancer le GPS" de la maquette
+	ActionButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("ActionButton"), ButtonColor, AccentHover(), RadiusCard, FMargin(20.f, 14.f));
+	ActionButtonText = ShowroomStyle::MakeText(WidgetTree, TEXT("ActionButtonText"), FText::FromString(TEXT("Lancer l'expérience")), ButtonFontSize, TextColor, TEXT("Bold"), false);
+	ActionButtonText->SetJustification(ETextJustify::Center);
+	ActionButton->SetContent(ActionButtonText);
 	if (UVerticalBoxSlot* ButtonSlot = Column->AddChildToVerticalBox(ActionButton))
 	{
-		ButtonSlot->SetHorizontalAlignment(HAlign_Center);
-		ButtonSlot->SetPadding(FMargin(0.f, 16.f, 0.f, 0.f));
+		ButtonSlot->SetHorizontalAlignment(HAlign_Fill);
+		ButtonSlot->SetPadding(FMargin(0.f, 14.f, 0.f, 0.f));
 	}
 }

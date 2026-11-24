@@ -1,4 +1,5 @@
 #include "UI/ExperienceEntryWidget.h"
+#include "UI/ShowroomStyle.h"
 #include "Interaction/DetectionZone.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Button.h"
@@ -8,48 +9,62 @@
 #include "Components/SizeBox.h"
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
+#include "Components/VerticalBoxSlot.h"
 #include "Engine/Texture2D.h"
 
 void UExperienceEntryWidget::BuildDefaultLayout()
 {
-	//  Button arrondi (toute la ligne est cliquable)
-	//   └ HorizontalBox
-	//       ├ SizeBox > Image (miniature)
-	//       └ VerticalBox : titre, sous-titre
-	EntryButton = WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(), TEXT("EntryButton"));
-	FButtonStyle Style = EntryButton->GetStyle();
-	Style.SetNormal(MakeRoundedBrush(NormalColor, 22.f));
-	Style.SetHovered(MakeRoundedBrush(NormalColor * 1.8f, 22.f));
-	Style.SetPressed(MakeRoundedBrush(SelectedColor, 22.f));
-	Style.SetNormalPadding(FMargin(18.f, 14.f));
-	Style.SetPressedPadding(FMargin(18.f, 15.f, 18.f, 13.f));
-	EntryButton->SetStyle(Style);
-	WidgetTree->RootWidget = EntryButton;
+	using namespace ShowroomStyle;
 
-	UHorizontalBox* Row = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Row"));
-	EntryButton->SetContent(Row);
+	//  SizeBox "Tile" (taille fixe de la vignette)
+	//   └ Button "EntryButton" (toute la vignette est cliquable)
+	//       └ VerticalBox
+	//           ├ Thumbnail (photo, coins arrondis)
+	//           └ HorizontalBox : TitleText (+ SubtitleText cache) | fleche
+	USizeBox* Tile = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("Tile"));
+	Tile->SetWidthOverride(TileSize.X);
+	Tile->SetHeightOverride(TileSize.Y);
+	WidgetTree->RootWidget = Tile;
 
-	USizeBox* ThumbBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ThumbnailBox"));
-	ThumbBox->SetWidthOverride(120.f);
-	ThumbBox->SetHeightOverride(90.f);
+	EntryButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("EntryButton"), Surface(), SurfaceHover(), RadiusCard, FMargin(8.f));
+	Tile->SetContent(EntryButton);
+
+	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Column"));
+	EntryButton->SetContent(Column);
+
+	USizeBox* ImageBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("ImageBox"));
+	ImageBox->SetHeightOverride(ImageHeight);
 	Thumbnail = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("Thumbnail"));
-	ThumbBox->SetContent(Thumbnail);
-	if (UHorizontalBoxSlot* ThumbSlot = Row->AddChildToHorizontalBox(ThumbBox))
+	Thumbnail->SetBrush(RoundedImageBrush(nullptr, RadiusSmall, FVector2D(TileSize.X, ImageHeight)));
+	ImageBox->SetContent(Thumbnail);
+	Column->AddChildToVerticalBox(ImageBox);
+
+	UHorizontalBox* Label = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("Label"));
+	if (UVerticalBoxSlot* LabelSlot = Column->AddChildToVerticalBox(Label))
 	{
-		ThumbSlot->SetPadding(FMargin(0.f, 0.f, 20.f, 0.f));
-		ThumbSlot->SetVerticalAlignment(VAlign_Center);
+		LabelSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		LabelSlot->SetPadding(FMargin(8.f, 6.f, 6.f, 0.f));
 	}
 
 	UVerticalBox* Texts = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Texts"));
-	if (UHorizontalBoxSlot* TextsSlot = Row->AddChildToHorizontalBox(Texts))
+	if (UHorizontalBoxSlot* TextsSlot = Label->AddChildToHorizontalBox(Texts))
 	{
 		TextsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		TextsSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	TitleText = MakeText(WidgetTree, TEXT("TitleText"), FText::FromString(TEXT("Expérience")), 34, FLinearColor::White);
+	TitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("TitleText"), FText::FromString(TEXT("Expérience")), 20, TextMain(), TEXT("Bold"), true);
+	TitleText->SetClipping(EWidgetClipping::ClipToBounds);
 	Texts->AddChildToVerticalBox(TitleText);
-	SubtitleText = MakeText(WidgetTree, TEXT("SubtitleText"), FText::FromString(TEXT("Sous-titre")), 22, FLinearColor(0.7f, 0.78f, 0.9f, 1.f));
+	SubtitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("SubtitleText"), FText::GetEmpty(), 18, TextMuted(), TEXT("Regular"), false);
+	SubtitleText->SetVisibility(ESlateVisibility::Collapsed);
 	Texts->AddChildToVerticalBox(SubtitleText);
+
+	UTextBlock* Chevron = ShowroomStyle::MakeText(WidgetTree, TEXT("ChevronText"), FText::FromString(TEXT("›")), 40, TextMuted(), TEXT("Bold"), false);
+	if (UHorizontalBoxSlot* ChevronSlot = Label->AddChildToHorizontalBox(Chevron))
+	{
+		ChevronSlot->SetVerticalAlignment(VAlign_Center);
+		ChevronSlot->SetPadding(FMargin(8.f, 0.f, 4.f, 4.f));
+	}
 }
 
 void UExperienceEntryWidget::NativeConstruct()
@@ -72,11 +87,11 @@ void UExperienceEntryWidget::SetZone(ADetectionZone* InZone)
 void UExperienceEntryWidget::SetSelected(bool bSelected)
 {
 	bIsSelected = bSelected;
-	if (EntryButton)
-	{
-		// Teinte du bouton : bleu quand l'experience est choisie.
-		EntryButton->SetBackgroundColor(bSelected ? SelectedTint : FLinearColor::White);
-	}
+	// Vignette de l'experience guidee par le GPS : fond bleu.
+	ShowroomStyle::SetButtonColors(EntryButton,
+		bSelected ? ShowroomStyle::AccentDeep() : ShowroomStyle::Surface(),
+		bSelected ? ShowroomStyle::Accent() : ShowroomStyle::SurfaceHover(),
+		ShowroomStyle::RadiusCard);
 }
 
 void UExperienceEntryWidget::HandleClicked()
@@ -91,21 +106,19 @@ void UExperienceEntryWidget::Refresh()
 	{
 		return;
 	}
-	if (TitleText)    TitleText->SetText(Z->Info.Title);
-	if (SubtitleText) SubtitleText->SetText(Z->Info.Subtitle);
+	if (TitleText)
+	{
+		TitleText->SetText(Z->Info.Title);
+	}
+	if (SubtitleText)
+	{
+		SubtitleText->SetText(Z->Info.Subtitle);
+	}
 	if (Thumbnail)
 	{
-		// Pas de photo : on cache la miniature (et son cadre s'il y en a un).
-		UWidget* Frame = Cast<USizeBox>(Thumbnail->GetParent()) ? static_cast<UWidget*>(Thumbnail->GetParent()) : static_cast<UWidget*>(Thumbnail);
-		if (Z->Info.Photo)
-		{
-			Thumbnail->SetBrushFromTexture(Z->Info.Photo);
-			Frame->SetVisibility(ESlateVisibility::HitTestInvisible);
-		}
-		else
-		{
-			Frame->SetVisibility(ESlateVisibility::Collapsed);
-		}
+		// Pas de photo : fond uni (la vignette garde sa forme).
+		const FVector2D Size = Thumbnail->GetBrush().ImageSize;
+		Thumbnail->SetBrush(ShowroomStyle::RoundedImageBrush(Z->Info.Photo, ShowroomStyle::RadiusSmall, Size));
 	}
 	SetSelected(bIsSelected);
 }
