@@ -272,6 +272,10 @@ public:
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Sons")
 	TSoftObjectPtr<USoundBase> SoundUIClick;
 
+	/** Le laser survole un bouton / une vignette (tres discret). */
+	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Sons")
+	TSoftObjectPtr<USoundBase> SoundUIHover;
+
 	/** Fond sonore en boucle pendant l'experience (vide = pas d'ambiance). */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "Sons")
 	TSoftObjectPtr<USoundBase> SoundAmbience;

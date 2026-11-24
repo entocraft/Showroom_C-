@@ -15,7 +15,7 @@ LEVEL = "/Game/XRFramework/Levels/L_XRTemplate"
 LABEL = "Ecran_ChoixExperience"
 DISTANCE = 220.0   # distance devant le point d'apparition (cm)
 HEIGHT = 145.0     # hauteur du centre de l'ecran (cm)
-SIDE = -240.0      # decalage sur le cote (cm, negatif = a gauche du joueur)
+SIDE = -170.0      # decalage sur le cote (cm, negatif = a gauche du joueur)
 
 level_sub = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 actor_sub = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -41,9 +41,9 @@ yaw = unreal.MathLibrary.make_rot_from_x(unreal.Vector(origin.x - loc.x, origin.
 screen = actor_sub.spawn_actor_from_class(unreal.load_class(None, "/Script/Enit.FloatingScreen"), loc, unreal.Rotator(0.0, 0.0, yaw))
 screen.set_actor_label(LABEL)
 screen.set_editor_property("content", unreal.load_class(None, "/Game/Showroom/UI/WBP_ExperienceSelector.WBP_ExperienceSelector_C"))
-screen.set_editor_property("resolution", unreal.Vector2D(1200.0, 900.0))
-screen.set_editor_property("world_width", 110.0)
-screen.set_editor_property("curvature", 25.0)
+screen.set_editor_property("resolution", unreal.Vector2D(1920.0, 1000.0))   # large : toutes les experiences visibles
+screen.set_editor_property("world_width", 210.0)
+screen.set_editor_property("curvature", 32.0)
 
 # Le GPS guide vers l'experience choisie (plus de parcours automatique au lancement).
 nav_class = unreal.load_class(None, "/Script/Enit.NavigatorSystem")

@@ -81,14 +81,14 @@ void UAuthorCardWidget::BuildDefaultLayout()
 		TextsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		TextsSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	NameText = ShowroomStyle::MakeText(WidgetTree, TEXT("NameText"), FText::FromString(TEXT("Prénom Nom")), 24, TextMain(), TEXT("Bold"));
+	NameText = ShowroomStyle::MakeText(WidgetTree, TEXT("NameText"), FText::FromString(TEXT("Prénom Nom")), 26, TextMain(), TEXT("Bold"));
 	Texts->AddChildToVerticalBox(NameText);
-	RoleText = ShowroomStyle::MakeText(WidgetTree, TEXT("RoleText"), FText::FromString(TEXT("MÉTIER")), 17, AccentText(), TEXT("Bold"));
+	RoleText = ShowroomStyle::MakeText(WidgetTree, TEXT("RoleText"), FText::FromString(TEXT("MÉTIER")), 19, AccentText(), TEXT("Bold"));
 	if (UVerticalBoxSlot* RoleSlot = Texts->AddChildToVerticalBox(RoleText))
 	{
 		RoleSlot->SetPadding(FMargin(0.f, 2.f, 0.f, 6.f));
 	}
-	BioText = ShowroomStyle::MakeText(WidgetTree, TEXT("BioText"), FText::FromString(TEXT("Son rôle dans l'expérience.")), 18, TextMuted());
+	BioText = ShowroomStyle::MakeText(WidgetTree, TEXT("BioText"), FText::FromString(TEXT("Son rôle dans l'expérience.")), 21, TextMuted());
 	Texts->AddChildToVerticalBox(BioText);
 }
 

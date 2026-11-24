@@ -10,6 +10,7 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/PanelWidget.h"
 #include "Engine/Texture2D.h"
 
 UInfoPanelWidget::UInfoPanelWidget(const FObjectInitializer& ObjectInitializer)
@@ -21,10 +22,10 @@ UInfoPanelWidget::UInfoPanelWidget(const FObjectInitializer& ObjectInitializer)
 	SubtitleColor = ShowroomStyle::TextMuted();
 	ButtonColor = ShowroomStyle::Accent();
 	NavButtonColor = ShowroomStyle::Surface();
-	TitleFontSize = 42;
-	SubtitleFontSize = 22;
-	DescriptionFontSize = 21;
-	ButtonFontSize = 26;
+	TitleFontSize = 46;
+	SubtitleFontSize = 27;
+	DescriptionFontSize = 27;
+	ButtonFontSize = 29;
 }
 
 void UInfoPanelWidget::NativeConstruct()
@@ -45,6 +46,9 @@ void UInfoPanelWidget::NativeConstruct()
 		NextButton->OnClicked.RemoveDynamic(this, &UInfoPanelWidget::HandleNextClicked);
 		NextButton->OnClicked.AddDynamic(this, &UInfoPanelWidget::HandleNextClicked);
 	}
+	AnimateHover(ActionButton, ActionButton, 1.03f, -4.f);
+	AnimateHover(NextButton, NextButton, 1.08f, 0.f);
+	AnimateHover(PreviousButton, PreviousButton, 1.08f, 0.f);
 	Refresh();
 }
 
@@ -66,8 +70,53 @@ void UInfoPanelWidget::SetStepNav(bool bVisible, const FText& InStepLabel, bool 
 
 void UInfoPanelWidget::SetInfo(const FShowroomInfo& NewInfo)
 {
+	const bool bChanged = !Info.Title.EqualTo(NewInfo.Title) || !Info.Description.EqualTo(NewInfo.Description);
 	Info = NewInfo;
 	Refresh();
+	if (bChanged && IsConstructed())
+	{
+		AnimateIn(ContentColumn, 0.f, FVector2D(30.f, 0.f), 0.3f); // nouvelle etape : le texte glisse
+	}
+}
+
+void UInfoPanelWidget::PlayIntro()
+{
+	Super::PlayIntro();
+	AnimateIn(ActionButton, 0.15f, FVector2D(0.f, 20.f), 0.3f);
+}
+
+void UInfoPanelWidget::SetActionIsStop(bool bStop)
+{
+	bActionIsStop = bStop;
+	Refresh();
+}
+
+void UInfoPanelWidget::SetStepProgress(int32 Current, int32 Count)
+{
+	ProgressCurrent = Current;
+	ProgressCount = Count;
+	if (!StepProgress || !WidgetTree)
+	{
+		return;
+	}
+	StepProgress->ClearChildren();
+	StepProgress->SetVisibility(Count > 1 ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Collapsed);
+	for (int32 i = 0; i < Count; ++i)
+	{
+		// Segment : fait (bleu clair), en cours (blanc, plus large), a venir (sombre).
+		USizeBox* SegBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass());
+		SegBox->SetHeightOverride(10.f);
+		const FLinearColor Color = i < Current ? ShowroomStyle::AccentText() : i == Current ? ShowroomStyle::TextMain() : ShowroomStyle::Outline();
+		SegBox->SetContent(ShowroomStyle::MakeBox(WidgetTree, NAME_None, Color, 5.f, FMargin(0.f)));
+		if (UHorizontalBoxSlot* SegSlot = Cast<UHorizontalBoxSlot>(StepProgress->AddChild(SegBox)))
+		{
+			FSlateChildSize Size(ESlateSizeRule::Fill);
+			Size.Value = i == Current ? 2.f : 1.f;
+			SegSlot->SetSize(Size);
+			SegSlot->SetPadding(FMargin(i > 0 ? 4.f : 0.f, 0.f, 0.f, 0.f));
+			SegSlot->SetVerticalAlignment(VAlign_Center);
+		}
+	}
 }
 
 void UInfoPanelWidget::Refresh()
@@ -106,6 +155,19 @@ void UInfoPanelWidget::Refresh()
 	if (ActionButtonText)
 	{
 		ActionButtonText->SetText(ActionLabel);
+	}
+	if (ActionButtonIcon)
+	{
+		ShowroomStyle::SetIcon(ActionButtonIcon, bActionIsStop ? TEXT("stop") : TEXT("play"));
+	}
+	// "Lancer l'experience" respire doucement pour attirer l'oeil ; pas "Terminer".
+	if (bActionVisible && !bActionIsStop)
+	{
+		AnimatePulse(ActionButton, 1.03f, 0.6f);
+	}
+	else
+	{
+		StopPulse(ActionButton);
 	}
 
 	if (StepNav)
@@ -173,6 +235,7 @@ void UInfoPanelWidget::BuildDefaultLayout()
 	}
 
 	UVerticalBox* Column = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("Texts"));
+	ContentColumn = Column;
 	if (UHorizontalBoxSlot* ColumnSlot = Row->AddChildToHorizontalBox(Column))
 	{
 		ColumnSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
@@ -183,9 +246,10 @@ void UInfoPanelWidget::BuildDefaultLayout()
 	{
 		TagSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 6.f));
 	}
-	UBorder* Tag = MakeBox(WidgetTree, TEXT("TagBox"), ShowroomStyle::Tag(), 999.f, FMargin(14.f, 5.f));
-	TagText = ShowroomStyle::MakeText(WidgetTree, TEXT("TagText"), FText::FromString(TEXT("EXPÉRIENCE")), 16, TextColor, TEXT("Bold"), false);
-	Tag->SetContent(TagText);
+	UBorder* Tag = MakeBox(WidgetTree, TEXT("TagBox"), ShowroomStyle::Tag(), 999.f, FMargin(12.f, 5.f, 16.f, 5.f));
+	UTextBlock* TagLabel = nullptr;
+	Tag->SetContent(MakeIconLabel(WidgetTree, TEXT("TagLabel"), TEXT("sparkle"), FText::FromString(TEXT("EXPÉRIENCE")), 19, TextColor, TEXT("Bold"), TagLabel, 8.f));
+	TagText = TagLabel;
 	TagBox = Tag;
 	TagRow->AddChildToHorizontalBox(Tag);
 
@@ -193,7 +257,7 @@ void UInfoPanelWidget::BuildDefaultLayout()
 	Column->AddChildToVerticalBox(TitleText);
 	SubtitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("SubtitleText"), FText::FromString(TEXT("Sous-titre")), SubtitleFontSize, SubtitleColor);
 	Column->AddChildToVerticalBox(SubtitleText);
-	MetaText = ShowroomStyle::MakeText(WidgetTree, TEXT("MetaText"), FText::FromString(TEXT("Domaine  •  Durée  •  Lieu")), 18, AccentText(), TEXT("Bold"));
+	MetaText = ShowroomStyle::MakeText(WidgetTree, TEXT("MetaText"), FText::FromString(TEXT("Domaine  •  Durée  •  Lieu")), 21, AccentText(), TEXT("Bold"));
 	if (UVerticalBoxSlot* MetaSlot = Column->AddChildToVerticalBox(MetaText))
 	{
 		MetaSlot->SetPadding(FMargin(0.f, 8.f, 0.f, 0.f));
@@ -210,10 +274,18 @@ void UInfoPanelWidget::BuildDefaultLayout()
 	}
 
 	// Navigation des etapes (cachee hors experience)
-	UHorizontalBox* Nav = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StepNav"));
-	StepNav = Nav;
-	PreviousButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("PreviousButton"), NavButtonColor, SurfaceHover(), 999.f, FMargin(22.f, 10.f));
-	PreviousButton->SetContent(ShowroomStyle::MakeText(WidgetTree, TEXT("PreviousButtonText"), FText::FromString(TEXT("‹  Précédent")), ButtonFontSize - 4, TextColor, TEXT("Bold"), false));
+	UVerticalBox* NavBlock = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("StepNav"));
+	StepNav = NavBlock;
+	UHorizontalBox* Progress = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StepProgress"));
+	StepProgress = Progress;
+	if (UVerticalBoxSlot* ProgressSlot = NavBlock->AddChildToVerticalBox(Progress))
+	{
+		ProgressSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 12.f));
+	}
+	UHorizontalBox* Nav = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StepNavRow"));
+	NavBlock->AddChildToVerticalBox(Nav);
+	PreviousButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("PreviousButton"), NavButtonColor, SurfaceHover(), 999.f, FMargin(16.f));
+	PreviousButton->SetContent(MakeIcon(WidgetTree, TEXT("PreviousButtonIcon"), TEXT("chevron_left"), 34.f, TextColor));
 	if (UHorizontalBoxSlot* PrevSlot = Nav->AddChildToHorizontalBox(PreviousButton))
 	{
 		PrevSlot->SetVerticalAlignment(VAlign_Center);
@@ -225,25 +297,50 @@ void UInfoPanelWidget::BuildDefaultLayout()
 		StepSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		StepSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	NextButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("NextButton"), ButtonColor, AccentHover(), 999.f, FMargin(22.f, 10.f));
-	NextButton->SetContent(ShowroomStyle::MakeText(WidgetTree, TEXT("NextButtonText"), FText::FromString(TEXT("Suivant  ›")), ButtonFontSize - 4, TextColor, TEXT("Bold"), false));
+	NextButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("NextButton"), ButtonColor, AccentHover(), 999.f, FMargin(22.f, 12.f, 18.f, 12.f));
+	{
+		UHorizontalBox* NextRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("NextButtonRow"));
+		if (UHorizontalBoxSlot* NextTextSlot = NextRow->AddChildToHorizontalBox(ShowroomStyle::MakeText(WidgetTree, TEXT("NextButtonText"), FText::FromString(TEXT("Suivant")), ButtonFontSize - 3, TextColor, TEXT("Bold"), false)))
+		{
+			NextTextSlot->SetVerticalAlignment(VAlign_Center);
+			NextTextSlot->SetPadding(FMargin(0.f, 0.f, 8.f, 0.f));
+		}
+		if (UHorizontalBoxSlot* NextIconSlot = NextRow->AddChildToHorizontalBox(MakeIcon(WidgetTree, TEXT("NextButtonIcon"), TEXT("chevron_right"), 28.f, TextColor)))
+		{
+			NextIconSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		NextButton->SetContent(NextRow);
+	}
 	if (UHorizontalBoxSlot* NextSlot = Nav->AddChildToHorizontalBox(NextButton))
 	{
 		NextSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	if (UVerticalBoxSlot* NavSlot = Column->AddChildToVerticalBox(Nav))
+	if (UVerticalBoxSlot* NavSlot = Column->AddChildToVerticalBox(NavBlock))
 	{
 		NavSlot->SetPadding(FMargin(0.f, 14.f, 0.f, 0.f));
 	}
 
 	// Bouton d'action : toute la largeur, comme "Lancer le GPS" de la maquette
 	ActionButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("ActionButton"), ButtonColor, AccentHover(), RadiusCard, FMargin(20.f, 14.f));
-	ActionButtonText = ShowroomStyle::MakeText(WidgetTree, TEXT("ActionButtonText"), FText::FromString(TEXT("Lancer l'expérience")), ButtonFontSize, TextColor, TEXT("Bold"), false);
-	ActionButtonText->SetJustification(ETextJustify::Center);
-	ActionButton->SetContent(ActionButtonText);
+	{
+		UHorizontalBox* ActionRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("ActionRow"));
+		ActionButtonIcon = MakeIcon(WidgetTree, TEXT("ActionButtonIcon"), TEXT("play"), 32.f, TextColor);
+		if (UHorizontalBoxSlot* ActionIconSlot = ActionRow->AddChildToHorizontalBox(ActionButtonIcon))
+		{
+			ActionIconSlot->SetVerticalAlignment(VAlign_Center);
+			ActionIconSlot->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+		}
+		ActionButtonText = ShowroomStyle::MakeText(WidgetTree, TEXT("ActionButtonText"), FText::FromString(TEXT("Lancer l'expérience")), ButtonFontSize, TextColor, TEXT("Bold"), false);
+		if (UHorizontalBoxSlot* ActionTextSlot = ActionRow->AddChildToHorizontalBox(ActionButtonText))
+		{
+			ActionTextSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		ActionButton->SetContent(ActionRow);
+		ActionButton->SetVisibility(ESlateVisibility::Visible);
+	}
 	if (UVerticalBoxSlot* ButtonSlot = Column->AddChildToVerticalBox(ActionButton))
 	{
-		ButtonSlot->SetHorizontalAlignment(HAlign_Fill);
+		ButtonSlot->SetHorizontalAlignment(HAlign_Fill); // contenu centre par le bouton
 		ButtonSlot->SetPadding(FMargin(0.f, 14.f, 0.f, 0.f));
 	}
 }

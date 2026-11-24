@@ -10,6 +10,8 @@ class UBorder;
 class UButton;
 class UTextBlock;
 class UTexture2D;
+class UImage;
+class UHorizontalBox;
 
 /**
  * CHARTE GRAPHIQUE des interfaces (maquette Figma "PTUT - Showroom" de Hugo).
@@ -39,9 +41,15 @@ namespace ShowroomStyle
 	inline FLinearColor AccentText()   { return Hex(TEXT("7FB2FF")); }   // petits titres bleus (metiers...)
 	inline FLinearColor Tag()          { return Hex(TEXT("3E5A85")); }   // pastille "EXPERIENCE N°2"
 	inline FLinearColor TextMain()         { return FLinearColor::White; }
-	inline FLinearColor TextMuted()    { return Hex(TEXT("A9B6CE")); }   // sous-titres
-	inline FLinearColor TextDim()      { return Hex(TEXT("6E7C98")); }   // textes tres secondaires
+	inline FLinearColor TextMuted()    { return Hex(TEXT("C3CDDF")); }   // sous-titres (contraste renforce pour la VR)
+	inline FLinearColor TextDim()      { return Hex(TEXT("94A1BC")); }   // textes secondaires (lisible en VR)
 	inline FLinearColor Shade()        { return Hex(TEXT("050A16C8")); } // voile sombre sur les images
+
+	inline FLinearColor Success()      { return Hex(TEXT("3FBF7F")); }   // "vous y etes", valide
+	inline FLinearColor Glow()         { return Hex(TEXT("7FB2FF40")); } // halo leger (contours survoles)
+
+	/** Couleur d'accent d'une experience (pour ses vignettes sans photo), par ordre d'affichage. */
+	ENIT_API FLinearColor ExperienceColor(int32 Index);
 
 	// --- Arrondis (pixels du widget) ---
 	constexpr float RadiusPanel = 28.f;
@@ -72,6 +80,19 @@ namespace ShowroomStyle
 	/** Bouton arrondi SANS contenu (a remplir), avec ses etats normal / survol / appui. */
 	ENIT_API UButton* MakeButton(UWidgetTree* Tree, FName Name, const FLinearColor& Normal, const FLinearColor& Hovered,
 		float Radius, const FMargin& Padding);
+
+	/** Icone de Content/Showroom/UI/Icons (T_Icon_<Name>), ou nullptr si elle n'existe pas. */
+	ENIT_API UTexture2D* Icon(const TCHAR* Name);
+
+	/** Image d'icone blanche teintee (Size = cote en pixels). */
+	ENIT_API UImage* MakeIcon(UWidgetTree* Tree, FName Name, const TCHAR* IconName, float Size, const FLinearColor& Color);
+
+	/** Change l'icone d'une image deja construite (garde sa taille et sa couleur). */
+	ENIT_API void SetIcon(UImage* Image, const TCHAR* IconName);
+
+	/** Ligne "icone + texte" (le texte s'appelle <Name>Text, l'icone <Name>Icon). */
+	ENIT_API UHorizontalBox* MakeIconLabel(UWidgetTree* Tree, FName Name, const TCHAR* IconName, const FText& Text,
+		int32 FontSize, const FLinearColor& Color, FName FontStyle, UTextBlock*& OutText, float Gap = 12.f);
 
 	/** Change les couleurs d'un bouton deja construit (ex : onglet selectionne). */
 	ENIT_API void SetButtonColors(UButton* Button, const FLinearColor& Normal, const FLinearColor& Hovered, float Radius);

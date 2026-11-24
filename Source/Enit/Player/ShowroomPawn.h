@@ -236,6 +236,7 @@ protected:
 	bool bThumbTouch[2] = { false, false };
 
 	bool bTeleportTraceActive = false;
+	bool bTeleportBlockedThisPress = false; // l'appui sur la gachette a commence sur une interface
 	bool bValidTeleportLocation = false;
 	FVector ProjectedTeleportLocation = FVector::ZeroVector;
 

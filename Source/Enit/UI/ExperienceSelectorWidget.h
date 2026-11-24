@@ -38,7 +38,7 @@ enum class EShowroomHubPage : uint8
  *
  * Les experiences = les zones d'experience du niveau (Show In Selector), leur contenu = leur fiche Info.
  *
- * A mettre comme Content d'un Ecran flottant (resolution conseillee 1200 x 900).
+ * A mettre comme Content d'un Ecran flottant (resolution conseillee 1920 x 1000 : 4 experiences + "Prochainement" visibles sans changer de page).
  * Mise en page modifiable sans code : Content/Showroom/UI/WBP_ExperienceSelector. Garder les noms :
  * TabExperiences, TabProject, TabHelp, TabSettings, LogoImage, LogoFallback, PageSwitcher, SheetSlot,
  * HeroButton, HeroImage, HeroTitle, HeroSubtitle, HeroPrev, HeroNext, HeroDots, TitleText, RowPrev, RowNext,
@@ -68,7 +68,7 @@ public:
 
 	/** Vignettes visibles a la fois (les fleches passent a la page suivante). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Selecteur", meta = (ClampMin = "1"))
-	int32 TilesPerPage = 3;
+	int32 TilesPerPage = 5;
 
 	/** Temps entre deux experiences du carrousel (s). 0 = pas de defilement automatique. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Selecteur", meta = (ClampMin = "0"))
@@ -79,6 +79,19 @@ public:
 	bool bShowComingSoonTile = true;
 
 	// ---------------- Textes ----------------
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes")
+	FText WelcomeTitleText = FText::FromString(TEXT("Bienvenue au Showroom ENIT"));
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes")
+	FText WelcomeSubtitleText = FText::FromString(TEXT("Choisissez une expérience : le GPS vous guide jusqu'à elle."));
+
+	/** Petite astuce en bas du menu lateral. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes", meta = (MultiLine = true))
+	FText TipText = FText::FromString(TEXT("Visez avec le laser, puis appuyez sur la gâchette."));
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes")
+	FText DiscoverText = FText::FromString(TEXT("Découvrir l'expérience"));
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes")
 	FText Title = FText::FromString(TEXT("Toutes les expériences"));
@@ -110,15 +123,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes")
 	FText HelpTitleText = FText::FromString(TEXT("Besoin d'aide ?"));
 
+	/** Phrase d'introduction de la page d'aide (les gestes sont affiches en cartes illustrees). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes", meta = (MultiLine = true))
-	FText HelpBodyText = FText::FromString(TEXT(
-		"•  Viser une interface + gâchette : cliquer\n"
-		"•  Joystick gauche : marcher\n"
-		"•  Joystick droit : tourner\n"
-		"•  Gâchette droite (sans viser d'interface) : se téléporter\n"
-		"•  Bouton de côté (grip) : attraper un objet\n"
-		"•  Bouton Y ou B : ouvrir le menu de la main\n"
-		"•  Viser la barre sous un écran + gâchette maintenue : déplacer l'écran"));
+	FText HelpBodyText = FText::FromString(TEXT("Les gestes de base en réalité virtuelle :"));
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Textes")
 	FText SettingsTitleText = FText::FromString(TEXT("Paramètres"));
@@ -208,7 +215,18 @@ protected:
 	/** Le conteneur ou les vignettes sont ajoutees (Horizontal Box, Wrap Box...). */
 	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UPanelWidget> EntryList;
 
+	// --- Accueil ---
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> WelcomeTitle;
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> WelcomeSubtitle;
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> TipLabel;
+	/** Grande icone du carrousel quand l'experience n'a pas de photo. */
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UImage> HeroArt;
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UWidget> HeroCaption;
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UWidget> HeroCta;
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> HeroCtaText;
+
 	// --- Barre d'etat du GPS ---
+	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UImage> StatusIcon;
 	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> StatusText;
 	UPROPERTY(BlueprintReadOnly, Category = "Selecteur", meta = (BindWidgetOptional)) TObjectPtr<UButton> StopButton;
 

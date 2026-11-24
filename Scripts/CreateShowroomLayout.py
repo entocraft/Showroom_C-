@@ -428,8 +428,10 @@ zone_dt.set_editor_property("steps", [
 starts = [a for a in actor_sub.get_all_level_actors() if isinstance(a, unreal.PlayerStart)]
 choice = by_label.get("Ecran_ChoixExperience")
 if choice and starts:
+    # meme placement que Scripts/CreateSpawnScreen.py : devant le joueur, sur le cote de l'entree du couloir
     s = starts[0].get_actor_location()
-    pos = unreal.Vector(-1030.0, 1290.0, s.z + 145.0)    # sur le cote de l'entree, pas dans le passage
+    pos = s + starts[0].get_actor_forward_vector() * 165.0 + starts[0].get_actor_right_vector() * -170.0
+    pos.z = s.z + 145.0
     to_start = unreal.Vector(s.x - pos.x, s.y - pos.y, 0.0)
     yaw = unreal.MathLibrary.make_rot_from_x(to_start).yaw
     choice.set_actor_location_and_rotation(pos, unreal.Rotator(0.0, 0.0, yaw), False, False)

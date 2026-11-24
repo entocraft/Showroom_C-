@@ -2,6 +2,9 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/HorizontalBox.h"
+#include "Components/HorizontalBoxSlot.h"
+#include "Components/Image.h"
 #include "Components/TextBlock.h"
 #include "Engine/Font.h"
 #include "Engine/Texture2D.h"
@@ -112,5 +115,70 @@ namespace ShowroomStyle
 		Style.SetPressed(RoundedBrush(Normal * 0.75f, Radius));
 		Style.SetDisabled(RoundedBrush(Normal * FLinearColor(1.f, 1.f, 1.f, 0.4f), Radius));
 		Button->SetStyle(Style);
+	}
+
+	FLinearColor ExperienceColor(int32 Index)
+	{
+		static const TCHAR* Palette[] = { TEXT("2E5FA3"), TEXT("7B4FC9"), TEXT("1F8A8A"), TEXT("C9783A"), TEXT("B8457A"), TEXT("4F8A3A") };
+		return Hex(Palette[((Index % 6) + 6) % 6]);
+	}
+
+	UTexture2D* Icon(const TCHAR* Name)
+	{
+		static TMap<FString, TWeakObjectPtr<UTexture2D>> Cache;
+		const FString Key(Name);
+		if (const TWeakObjectPtr<UTexture2D>* Found = Cache.Find(Key))
+		{
+			if (Found->IsValid())
+			{
+				return Found->Get();
+			}
+		}
+		const FString Path = FString::Printf(TEXT("/Game/Showroom/UI/Icons/T_Icon_%s.T_Icon_%s"), Name, Name);
+		UTexture2D* Texture = LoadObject<UTexture2D>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		Cache.Add(Key, Texture);
+		return Texture;
+	}
+
+	UImage* MakeIcon(UWidgetTree* Tree, FName Name, const TCHAR* IconName, float Size, const FLinearColor& Color)
+	{
+		UImage* Image = Tree->ConstructWidget<UImage>(UImage::StaticClass(), Name);
+		FSlateBrush Brush;
+		Brush.SetResourceObject(Icon(IconName));
+		Brush.ImageSize = FVector2D(Size, Size);
+		Brush.DrawAs = ESlateBrushDrawType::Image;
+		Image->SetBrush(Brush);
+		Image->SetColorAndOpacity(Color);
+		Image->SetVisibility(ESlateVisibility::HitTestInvisible);
+		return Image;
+	}
+
+	void SetIcon(UImage* Image, const TCHAR* IconName)
+	{
+		if (Image)
+		{
+			FSlateBrush Brush = Image->GetBrush();
+			Brush.SetResourceObject(Icon(IconName));
+			Image->SetBrush(Brush);
+		}
+	}
+
+	UHorizontalBox* MakeIconLabel(UWidgetTree* Tree, FName Name, const TCHAR* IconName, const FText& Text,
+		int32 FontSize, const FLinearColor& Color, FName FontStyle, UTextBlock*& OutText, float Gap)
+	{
+		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), Name);
+		const FString Base = Name.IsNone() ? FString() : Name.ToString();
+		UImage* IconImage = MakeIcon(Tree, Base.IsEmpty() ? NAME_None : FName(*(Base + TEXT("Icon"))), IconName, FontSize * 1.15f, Color);
+		if (UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(IconImage))
+		{
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+			IconSlot->SetPadding(FMargin(0.f, 0.f, Gap, 0.f));
+		}
+		OutText = MakeText(Tree, Base.IsEmpty() ? NAME_None : FName(*(Base + TEXT("Text"))), Text, FontSize, Color, FontStyle, false);
+		if (UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(OutText))
+		{
+			TextSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		return Row;
 	}
 }

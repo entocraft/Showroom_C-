@@ -5,6 +5,8 @@
 #include "Components/TextBlock.h"
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
+#include "Components/HorizontalBox.h"
+#include "UI/ShowroomStyle.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 
@@ -23,8 +25,16 @@ void UHandMenuWidget::BuildDefaultLayout()
 	Column->AddChildToVerticalBox(MakeText(WidgetTree, TEXT("TitleText"), FText::FromString(TEXT("Menu")), 40, FLinearColor::White, ETextJustify::Center));
 
 	const FLinearColor Blue(0.1f, 0.45f, 0.9f, 1.f);
-	RestartButton = MakeButton(WidgetTree, TEXT("RestartButton"), FText::FromString(TEXT("Recommencer")), 32, Blue);
-	QuitButton = MakeButton(WidgetTree, TEXT("QuitButton"), FText::FromString(TEXT("Quitter")), 32, FLinearColor(0.25f, 0.25f, 0.3f, 1.f));
+	// Boutons arrondis : une icone + un libelle
+	auto MakeMenuButton = [this](const TCHAR* Name, const TCHAR* Icon, const TCHAR* Label, const FLinearColor& Color)
+	{
+		UButton* Button = ShowroomStyle::MakeButton(WidgetTree, Name, Color, Color * 1.35f, 18.f, FMargin(24.f, 12.f));
+		UTextBlock* Text = nullptr;
+		Button->SetContent(ShowroomStyle::MakeIconLabel(WidgetTree, *(FString(Name) + TEXT("Label")), Icon, FText::FromString(Label), 32, FLinearColor::White, TEXT("Bold"), Text, 12.f));
+		return Button;
+	};
+	RestartButton = MakeMenuButton(TEXT("RestartButton"), TEXT("refresh"), TEXT("Recommencer"), FLinearColor(0.1f, 0.45f, 0.9f, 1.f));
+	QuitButton = MakeMenuButton(TEXT("QuitButton"), TEXT("power"), TEXT("Quitter"), FLinearColor(0.25f, 0.25f, 0.3f, 1.f));
 	for (UButton* Button : { RestartButton.Get(), QuitButton.Get() })
 	{
 		if (UVerticalBoxSlot* ButtonSlot = Column->AddChildToVerticalBox(Button))
@@ -47,6 +57,8 @@ void UHandMenuWidget::NativeConstruct()
 		QuitButton->OnClicked.RemoveDynamic(this, &UHandMenuWidget::OnQuitClicked);
 		QuitButton->OnClicked.AddDynamic(this, &UHandMenuWidget::OnQuitClicked);
 	}
+	AnimateHover(RestartButton, RestartButton, 1.05f, 0.f);
+	AnimateHover(QuitButton, QuitButton, 1.05f, 0.f);
 }
 
 void UHandMenuWidget::OnRestartClicked()

@@ -11,7 +11,7 @@
 namespace
 {
 	constexpr float GrabBarGap = 6.f;       // espace entre l'ecran et la barre (cm)
-	constexpr float FadeSpeed = 4.f;        // 1/s
+	constexpr float ScreenFadeSpeed = 4.f;        // 1/s
 
 	void SetupWidgetComponent(UWidgetComponent* Widget)
 	{
@@ -112,6 +112,13 @@ UUserWidget* AFloatingScreen::GetContentWidget() const
 
 void AFloatingScreen::ShowScreen()
 {
+	if (!bWantVisible)
+	{
+		if (UShowroomWidget* Widget = Cast<UShowroomWidget>(GetContentWidget()))
+		{
+			Widget->PlayIntro(); // le contenu apparait en glissant
+		}
+	}
 	bWantVisible = true;
 	SetActorHiddenInGame(false);
 	SetActorEnableCollision(true);
@@ -177,7 +184,7 @@ void AFloatingScreen::Tick(float DeltaSeconds)
 
 	// --- Apparition / disparition ---
 	const float Wanted = bWantVisible ? 1.f : 0.f;
-	Alpha = FMath::FInterpConstantTo(Alpha, Wanted, DeltaSeconds, FadeSpeed);
+	Alpha = FMath::FInterpConstantTo(Alpha, Wanted, DeltaSeconds, ScreenFadeSpeed);
 	const FLinearColor Tint(1.f, 1.f, 1.f, Alpha);
 	Screen->SetTintColorAndOpacity(Tint);
 	GrabBar->SetTintColorAndOpacity(Tint);

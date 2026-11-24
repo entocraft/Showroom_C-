@@ -7,6 +7,10 @@ et dessine des APERCUS PNG dans Saved/UIPreview (sans lancer le jeu).
   WBP_ExperienceSheet     la fiche d'une experience (galerie, auteurs, bouton GPS)
   WBP_AuthorCard          la carte d'un auteur
   WBP_InfoPanel           la fiche affichee dans chaque zone d'experience
+  WBP_HandMenu            le menu de la main (Recommencer / Quitter)
+
+Icones : Content/Showroom/UI/Icons (Scripts/CreateIcons.py). Animations (survol, apparition, respiration) :
+voir UShowroomWidget (AnimateHover / AnimateIn / AnimatePulse), elles marchent aussi dans les WBP.
 
 ATTENTION : ces 5 WBP sont REFAITS a neuf (les retouches faites a la main dedans sont perdues).
 Mettre REBUILD = False pour seulement refaire les apercus.
@@ -30,6 +34,7 @@ WIDGETS = [
     ("WBP_ExperienceSheet", "ExperienceSheetWidget"),
     ("WBP_ExperienceSelector", "ExperienceSelectorWidget"),
     ("WBP_InfoPanel", "InfoPanelWidget"),
+    ("WBP_HandMenu", "HandMenuWidget"),
 ]
 
 lib = unreal.ShowroomEditorLibrary
@@ -52,10 +57,10 @@ if PREVIEWS:
     selector = unreal.load_class(None, DEST + "/WBP_ExperienceSelector.WBP_ExperienceSelector_C")
     panel = unreal.load_class(None, DEST + "/WBP_InfoPanel.WBP_InfoPanel_C")
     shots = [
-        (selector, (1200, 900), "1_Accueil.png", 0),
-        (selector, (1200, 900), "2_Fiche.png", 1),
-        (selector, (1200, 900), "3_NotreProjet.png", 2),
-        (selector, (1200, 900), "4_Aide.png", 3),
+        (selector, (1920, 1000), "1_Accueil.png", 0),
+        (selector, (1920, 1000), "2_Fiche.png", 1),
+        (selector, (1920, 1000), "3_NotreProjet.png", 2),
+        (selector, (1920, 1000), "4_Aide.png", 3),
         (panel, (1000, 600), "5_FicheZone.png", 0),
     ]
     for cls, size, file_name, page in shots:

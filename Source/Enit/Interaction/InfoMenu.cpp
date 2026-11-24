@@ -69,11 +69,12 @@ void AInfoMenu::BeginPlay()
 	ShowMenu(bVisibleAtStart);
 }
 
-void AInfoMenu::SetActionButton(bool bVisible, const FText& Label)
+void AInfoMenu::SetActionButton(bool bVisible, const FText& Label, bool bIsStop)
 {
 	if (UInfoPanelWidget* Panel = GetPanel())
 	{
 		Panel->SetActionButton(bVisible, Label);
+		Panel->SetActionIsStop(bIsStop);
 	}
 }
 
@@ -87,11 +88,12 @@ void AInfoMenu::EndDrag()
 	Drag.End();
 }
 
-void AInfoMenu::SetStepNav(bool bVisible, const FText& StepLabel, bool bCanPrevious, bool bCanNext)
+void AInfoMenu::SetStepNav(bool bVisible, const FText& StepLabel, bool bCanPrevious, bool bCanNext, int32 StepIndex, int32 StepCount)
 {
 	if (UInfoPanelWidget* Panel = GetPanel())
 	{
 		Panel->SetStepNav(bVisible, StepLabel, bCanPrevious, bCanNext);
+		Panel->SetStepProgress(StepIndex, bVisible ? StepCount : 0);
 	}
 }
 
@@ -143,6 +145,10 @@ void AInfoMenu::ShowMenu(bool bShow)
 	if (bShow && !bWasVisible)
 	{
 		bAnchored = false; // la fiche revient devant le joueur a chaque ouverture
+		if (UInfoPanelWidget* Panel = GetPanel())
+		{
+			Panel->PlayIntro(); // apparition animee
+		}
 	}
 	if (!bShow)
 	{

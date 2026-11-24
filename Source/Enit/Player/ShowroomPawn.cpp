@@ -404,9 +404,16 @@ void AShowroomPawn::OnTeleportHeld(const FInputActionValue& /*Value*/)
 	{
 		return;
 	}
-	// La gachette droite sert aussi a cliquer : si on vise un menu, on ne lance pas la teleportation.
+	// La gachette droite sert aussi a cliquer : si l'appui a COMMENCE sur une interface (clic, barre de prise
+	// d'un ecran / de la fiche), pas de teleportation jusqu'au relachement - meme si le laser quitte
+	// l'interface en cours de route (ex : en deplacant un panneau).
+	if (bTeleportBlockedThisPress)
+	{
+		return;
+	}
 	if (!bTeleportTraceActive && WidgetInteractionRight->IsOverHitTestVisibleWidget())
 	{
+		bTeleportBlockedThisPress = true;
 		return;
 	}
 	UpdateTeleportTrace();
@@ -414,6 +421,7 @@ void AShowroomPawn::OnTeleportHeld(const FInputActionValue& /*Value*/)
 
 void AShowroomPawn::OnTeleportReleased()
 {
+	bTeleportBlockedThisPress = false;
 	if (bTeleportTraceActive && bValidTeleportLocation)
 	{
 		TeleportPlayerTo(ProjectedTeleportLocation);

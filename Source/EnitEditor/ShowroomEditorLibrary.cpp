@@ -20,6 +20,7 @@
 #include "ImageUtils.h"
 #include "RenderingThread.h"
 #include "Slate/WidgetRenderer.h"
+#include "TextureCompiler.h"
 
 namespace
 {
@@ -81,6 +82,20 @@ UObject* UShowroomEditorLibrary::CreateWidgetBlueprintFromLayout(const FString& 
 		Blueprint->OnVariableAdded(Widget->GetFName());
 	}
 
+	// Oublie les widgets qui n'existent plus (sinon : "Variable ... was deleted but still has a GUID").
+	TSet<FName> Alive;
+	for (const UWidget* Widget : Widgets)
+	{
+		Alive.Add(Widget->GetFName());
+	}
+	for (auto It = Blueprint->WidgetVariableNameToGuidMap.CreateIterator(); It; ++It)
+	{
+		if (!Alive.Contains(It.Key()))
+		{
+			It.RemoveCurrent();
+		}
+	}
+
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
 	FKismetEditorUtilities::CompileBlueprint(Blueprint);
 	Blueprint->MarkPackageDirty();
@@ -137,12 +152,14 @@ bool UShowroomEditorLibrary::RenderWidgetPreview(TSubclassOf<UUserWidget> Widget
 	}
 
 	// Images en pleine resolution, puis plusieurs passes de dessin (la mise en page se stabilise).
+	FTextureCompilingManager::Get().FinishAllCompilation(); // icones fraichement importees : pretes
 	IStreamingManager::Get().StreamAllResources(10.f);
 	FWidgetRenderer Renderer(/*bUseGammaCorrection*/ true, /*bClearTarget*/ true);
 	UTextureRenderTarget2D* Target = Renderer.DrawWidget(SlateWidget, Size);
-	for (int32 Pass = 0; Pass < 4 && Target; ++Pass)
+	// ~1,4 s simulees : les animations d'apparition se terminent avant la capture.
+	for (int32 Pass = 0; Pass < 70 && Target; ++Pass)
 	{
-		Renderer.DrawWidget(Target, SlateWidget, Size, 0.016f);
+		Renderer.DrawWidget(Target, SlateWidget, Size, 0.02f);
 	}
 	FlushRenderingCommands();
 	if (!Target)

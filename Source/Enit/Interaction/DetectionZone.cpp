@@ -42,7 +42,7 @@ namespace
 	}
 
 	constexpr float PresenceInterval = 0.1f;   // verification de presence du joueur (s)
-	constexpr float OutlineWidth = 4.f;        // largeur de la ligne au sol (cm)
+	constexpr float ZoneOutlineWidth = 4.f;        // largeur de la ligne au sol (cm)
 	constexpr float OutlineIdleOpacity = 0.35f;
 	constexpr float OutlineActiveOpacity = 0.9f;
 
@@ -211,7 +211,7 @@ void ADetectionZone::RebuildShape()
 		{
 			const FVector2D A = Polygon[i];
 			const FVector2D B = Polygon[(i + 1) % Polygon.Num()];
-			const FVector2D Side = FVector2D(-(B - A).Y, (B - A).X).GetSafeNormal() * (OutlineWidth * 0.5f);
+			const FVector2D Side = FVector2D(-(B - A).Y, (B - A).X).GetSafeNormal() * (ZoneOutlineWidth * 0.5f);
 			const int32 Base = Verts.Num();
 			Verts.Add(FVector(A - Side, Z));
 			Verts.Add(FVector(A + Side, Z));
@@ -399,7 +399,7 @@ void ADetectionZone::UpdateMenuButton() const
 {
 	if (AInfoMenu* Target = GetMenu())
 	{
-		Target->SetActionButton(bHasExperience, bExperienceRunning ? StopButtonText : StartButtonText);
+		Target->SetActionButton(bHasExperience, bExperienceRunning ? StopButtonText : StartButtonText, bExperienceRunning);
 	}
 }
 
@@ -664,7 +664,7 @@ void ADetectionZone::UpdateMenuForStep() const
 
 		const FText Label = FText::Format(FText::FromString(TEXT("Étape {0} / {1}")),
 			FText::AsNumber(CurrentStep + 1), FText::AsNumber(Steps.Num()));
-		Target->SetStepNav(true, Label, CurrentStep > 0, CurrentStep + 1 < Steps.Num() || bEndAfterLastStep);
+		Target->SetStepNav(true, Label, CurrentStep > 0, CurrentStep + 1 < Steps.Num() || bEndAfterLastStep, CurrentStep, Steps.Num());
 	}
 	else
 	{

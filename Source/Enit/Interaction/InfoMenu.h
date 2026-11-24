@@ -73,11 +73,11 @@ public:
 
 	/** Bouton d'action en bas de la fiche (utilise par la DetectionZone pour "Lancer l'experience"). */
 	UFUNCTION(BlueprintCallable, Category = "Fiche")
-	void SetActionButton(bool bVisible, const FText& Label);
+	void SetActionButton(bool bVisible, const FText& Label, bool bIsStop = false);
 
 	/** Navigation des etapes d'une experience (utilise par la DetectionZone). */
 	UFUNCTION(BlueprintCallable, Category = "Fiche")
-	void SetStepNav(bool bVisible, const FText& StepLabel, bool bCanPrevious, bool bCanNext);
+	void SetStepNav(bool bVisible, const FText& StepLabel, bool bCanPrevious, bool bCanNext, int32 StepIndex = -1, int32 StepCount = 0);
 
 	/** La DetectionZone qui affiche actuellement ce panneau (utile quand plusieurs zones partagent un panneau). */
 	UPROPERTY(Transient, BlueprintReadOnly, Category = "Fiche")

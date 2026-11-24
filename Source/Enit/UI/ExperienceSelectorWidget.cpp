@@ -7,6 +7,7 @@
 #include "Blueprint/WidgetTree.h"
 #include "Components/Border.h"
 #include "Components/Button.h"
+#include "Components/ButtonSlot.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
 #include "Components/Image.h"
@@ -19,54 +20,115 @@
 #include "Components/VerticalBox.h"
 #include "Components/VerticalBoxSlot.h"
 #include "Components/WidgetSwitcher.h"
+#include "Components/UniformGridPanel.h"
+#include "Components/UniformGridSlot.h"
 #include "Engine/Texture2D.h"
 #include "EngineUtils.h"
 
 namespace
 {
-	constexpr float SidebarWidth = 250.f;
-	constexpr float HeroHeight = 400.f;
+	constexpr float SidebarWidth = 300.f;
+	constexpr float HeroHeight = 320.f;
+	constexpr float HeroWidth = 1550.f; // toute la largeur du panneau principal (ecran de 1920 px)
 	constexpr float PanelGap = 16.f;
 
 	/** Onglet du menu lateral : un bouton plat avec son texte (nomme <Name>Text). */
-	UButton* MakeTab(UWidgetTree* Tree, const TCHAR* Name, const TCHAR* Label)
+	UButton* MakeTab(UWidgetTree* Tree, const TCHAR* Name, const TCHAR* Label, const TCHAR* IconName)
 	{
 		using namespace ShowroomStyle;
-		UButton* Tab = MakeButton(Tree, Name, FLinearColor::Transparent, SurfaceHover(), RadiusSmall, FMargin(12.f, 14.f));
-		UTextBlock* Text = MakeText(Tree, *(FString(Name) + TEXT("Text")), FText::FromString(Label), 19, TextMain(), TEXT("Bold"), false);
-		Tab->SetContent(Text);
+		UButton* Tab = MakeButton(Tree, Name, FLinearColor::Transparent, SurfaceHover(), RadiusCard, FMargin(14.f, 16.f));
+		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), *(FString(Name) + TEXT("Row")));
+		if (UHorizontalBoxSlot* IconSlot = Row->AddChildToHorizontalBox(MakeIcon(Tree, *(FString(Name) + TEXT("Icon")), IconName, 32.f, TextMain())))
+		{
+			IconSlot->SetVerticalAlignment(VAlign_Center);
+			IconSlot->SetPadding(FMargin(0.f, 0.f, 14.f, 0.f));
+		}
+		UTextBlock* Text = MakeText(Tree, *(FString(Name) + TEXT("Text")), FText::FromString(Label), 22, TextMain(), TEXT("Bold"), false);
+		if (UHorizontalBoxSlot* TextSlot = Row->AddChildToHorizontalBox(Text))
+		{
+			TextSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		Tab->SetContent(Row);
+		if (UButtonSlot* RowSlot = Cast<UButtonSlot>(Row->Slot))
+		{
+			RowSlot->SetHorizontalAlignment(HAlign_Left); // icones alignees les unes sous les autres
+		}
 		return Tab;
 	}
 
 	/** Bouton rond avec une fleche. */
-	UButton* MakeArrow(UWidgetTree* Tree, const TCHAR* Name, const TCHAR* Symbol, int32 Size, const FLinearColor& Normal)
+	UButton* MakeArrow(UWidgetTree* Tree, const TCHAR* Name, const TCHAR* IconName, int32 Size, const FLinearColor& Normal)
 	{
 		using namespace ShowroomStyle;
-		UButton* Button = MakeButton(Tree, Name, Normal, AccentDeep(), 999.f, FMargin(Size * 0.38f, 0.f, Size * 0.38f, Size * 0.12f));
-		Button->SetContent(MakeText(Tree, *(FString(Name) + TEXT("Text")), FText::FromString(Symbol), Size, TextMain(), TEXT("Bold"), false));
+		UButton* Button = MakeButton(Tree, Name, Normal, AccentDeep(), 999.f, FMargin(Size * 0.3f));
+		Button->SetContent(MakeIcon(Tree, *(FString(Name) + TEXT("Icon")), IconName, Size * 0.7f, TextMain()));
 		return Button;
 	}
 
 	/** Page de texte simple : titre + encadre. */
+	/** Titre de page : icone dans une pastille bleue + texte. */
+	UHorizontalBox* MakePageTitle(UWidgetTree* Tree, const TCHAR* TitleName, const TCHAR* IconName, const FText& Title, UTextBlock*& OutTitle)
+	{
+		using namespace ShowroomStyle;
+		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), *(FString(TitleName) + TEXT("Row")));
+		UBorder* Badge = MakeBox(Tree, *(FString(TitleName) + TEXT("Badge")), AccentDeep(), 999.f, FMargin(16.f));
+		Badge->SetContent(MakeIcon(Tree, NAME_None, IconName, 40.f, AccentText()));
+		if (UHorizontalBoxSlot* BadgeSlot = Row->AddChildToHorizontalBox(Badge))
+		{
+			BadgeSlot->SetVerticalAlignment(VAlign_Center);
+			BadgeSlot->SetPadding(FMargin(0.f, 0.f, 22.f, 0.f));
+		}
+		OutTitle = MakeText(Tree, TitleName, Title, 52, TextMain(), TEXT("Bold"), false);
+		if (UHorizontalBoxSlot* TitleSlot = Row->AddChildToHorizontalBox(OutTitle))
+		{
+			TitleSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		return Row;
+	}
+
 	UVerticalBox* MakeTextPage(UWidgetTree* Tree, const TCHAR* PageName, const TCHAR* TitleName, const TCHAR* BodyName,
-		const FText& Title, const FText& Body, UTextBlock*& OutTitle, UTextBlock*& OutBody)
+		const FText& Title, const FText& Body, UTextBlock*& OutTitle, UTextBlock*& OutBody, const TCHAR* IconName)
 	{
 		using namespace ShowroomStyle;
 		UVerticalBox* Page = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), PageName);
-		OutTitle = MakeText(Tree, TitleName, Title, 44, TextMain(), TEXT("Bold"));
-		if (UVerticalBoxSlot* TitleSlot = Page->AddChildToVerticalBox(OutTitle))
+		if (UVerticalBoxSlot* TitleSlot = Page->AddChildToVerticalBox(MakePageTitle(Tree, TitleName, IconName, Title, OutTitle)))
 		{
-			TitleSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 20.f));
+			TitleSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 24.f));
 		}
 		UBorder* Box = MakeBox(Tree, *(FString(PageName) + TEXT("Box")), SurfaceDeep(), RadiusCard, FMargin(28.f, 24.f));
 		Box->SetVerticalAlignment(VAlign_Top);
-		OutBody = MakeText(Tree, BodyName, Body, 26, TextMain());
+		OutBody = MakeText(Tree, BodyName, Body, 31, TextMain());
 		Box->SetContent(OutBody);
 		if (UVerticalBoxSlot* BoxSlot = Page->AddChildToVerticalBox(Box))
 		{
 			BoxSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		}
 		return Page;
+	}
+
+	/** Une carte de la page d'aide : icone dans un rond + titre + explication. */
+	UBorder* MakeHelpCard(UWidgetTree* Tree, const TCHAR* IconName, const TCHAR* Title, const TCHAR* Text)
+	{
+		using namespace ShowroomStyle;
+		UBorder* Card = MakeBox(Tree, NAME_None, Surface(), RadiusCard, FMargin(22.f, 18.f));
+		UHorizontalBox* Row = Tree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass());
+		Card->SetContent(Row);
+		UBorder* Badge = MakeBox(Tree, NAME_None, AccentDeep(), 999.f, FMargin(16.f));
+		Badge->SetContent(MakeIcon(Tree, NAME_None, IconName, 40.f, AccentText()));
+		if (UHorizontalBoxSlot* BadgeSlot = Row->AddChildToHorizontalBox(Badge))
+		{
+			BadgeSlot->SetVerticalAlignment(VAlign_Center);
+			BadgeSlot->SetPadding(FMargin(0.f, 0.f, 20.f, 0.f));
+		}
+		UVerticalBox* Texts = Tree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass());
+		if (UHorizontalBoxSlot* TextsSlot = Row->AddChildToHorizontalBox(Texts))
+		{
+			TextsSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+			TextsSlot->SetVerticalAlignment(VAlign_Center);
+		}
+		Texts->AddChildToVerticalBox(MakeText(Tree, NAME_None, FText::FromString(Title), 27, TextMain(), TEXT("Bold"), false));
+		Texts->AddChildToVerticalBox(MakeText(Tree, NAME_None, FText::FromString(Text), 22, TextMuted(), TEXT("Regular"), true));
+		return Card;
 	}
 }
 
@@ -135,9 +197,9 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 		LogoImageSlot->SetVerticalAlignment(VAlign_Center);
 	}
 
-	TabExperiences = MakeTab(WidgetTree, TEXT("TabExperiences"), TEXT("EXPÉRIENCES"));
-	TabProject = MakeTab(WidgetTree, TEXT("TabProject"), TEXT("NOTRE PROJET"));
-	TabHelp = MakeTab(WidgetTree, TEXT("TabHelp"), TEXT("BESOIN D'AIDE ?"));
+	TabExperiences = MakeTab(WidgetTree, TEXT("TabExperiences"), TEXT("EXPÉRIENCES"), TEXT("grid"));
+	TabProject = MakeTab(WidgetTree, TEXT("TabProject"), TEXT("NOTRE PROJET"), TEXT("info"));
+	TabHelp = MakeTab(WidgetTree, TEXT("TabHelp"), TEXT("AIDE"), TEXT("help"));
 	for (UButton* Tab : { TabExperiences.Get(), TabProject.Get(), TabHelp.Get() })
 	{
 		if (UVerticalBoxSlot* TabSlot = Menu->AddChildToVerticalBox(Tab))
@@ -150,7 +212,27 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 	{
 		SpaceSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 	}
-	TabSettings = MakeTab(WidgetTree, TEXT("TabSettings"), TEXT("PARAMÈTRES"));
+	// Astuce (rassurante pour une premiere fois en VR)
+	UBorder* Tip = MakeBox(WidgetTree, TEXT("TipCard"), SurfaceDeep(), RadiusCard, FMargin(16.f, 14.f));
+	UHorizontalBox* TipRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("TipRow"));
+	Tip->SetContent(TipRow);
+	if (UHorizontalBoxSlot* TipIconSlot = TipRow->AddChildToHorizontalBox(MakeIcon(WidgetTree, TEXT("TipIcon"), TEXT("pointer"), 34.f, AccentText())))
+	{
+		TipIconSlot->SetVerticalAlignment(VAlign_Center);
+		TipIconSlot->SetPadding(FMargin(0.f, 0.f, 12.f, 0.f));
+	}
+	TipLabel = ShowroomStyle::MakeText(WidgetTree, TEXT("TipLabel"), TipText, 19, TextMuted(), TEXT("Regular"), true);
+	if (UHorizontalBoxSlot* TipTextSlot = TipRow->AddChildToHorizontalBox(TipLabel))
+	{
+		TipTextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		TipTextSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	if (UVerticalBoxSlot* TipSlot = Menu->AddChildToVerticalBox(Tip))
+	{
+		TipSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 12.f));
+	}
+
+	TabSettings = MakeTab(WidgetTree, TEXT("TabSettings"), TEXT("PARAMÈTRES"), TEXT("gear"));
 	Menu->AddChildToVerticalBox(TabSettings);
 
 	// ---------------- Panneau principal ----------------
@@ -172,6 +254,23 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 	UVerticalBox* Home = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("HomePage"));
 	PageSwitcher->AddChild(Home);
 
+	UHorizontalBox* Welcome = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("WelcomeRow"));
+	if (UVerticalBoxSlot* WelcomeSlot = Home->AddChildToVerticalBox(Welcome))
+	{
+		WelcomeSlot->SetPadding(FMargin(4.f, 0.f, 0.f, 20.f));
+	}
+	if (UHorizontalBoxSlot* SparkSlot = Welcome->AddChildToHorizontalBox(MakeIcon(WidgetTree, TEXT("WelcomeIcon"), TEXT("sparkle"), 56.f, AccentText())))
+	{
+		SparkSlot->SetVerticalAlignment(VAlign_Center);
+		SparkSlot->SetPadding(FMargin(0.f, 0.f, 20.f, 0.f));
+	}
+	UVerticalBox* WelcomeTexts = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("WelcomeTexts"));
+	Welcome->AddChildToHorizontalBox(WelcomeTexts);
+	WelcomeTitle = ShowroomStyle::MakeText(WidgetTree, TEXT("WelcomeTitle"), WelcomeTitleText, 40, TextMain(), TEXT("Bold"), false);
+	WelcomeTexts->AddChildToVerticalBox(WelcomeTitle);
+	WelcomeSubtitle = ShowroomStyle::MakeText(WidgetTree, TEXT("WelcomeSubtitle"), WelcomeSubtitleText, 25, TextMuted(), TEXT("Regular"), false);
+	WelcomeTexts->AddChildToVerticalBox(WelcomeSubtitle);
+
 	USizeBox* HeroBox = WidgetTree->ConstructWidget<USizeBox>(USizeBox::StaticClass(), TEXT("HeroBox"));
 	HeroBox->SetHeightOverride(HeroHeight);
 	Home->AddChildToVerticalBox(HeroBox);
@@ -180,7 +279,7 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 
 	HeroButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("HeroButton"), FLinearColor::Transparent, FLinearColor(1.f, 1.f, 1.f, 0.04f), RadiusCard, FMargin(0.f));
 	HeroImage = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("HeroImage"));
-	HeroImage->SetBrush(RoundedImageBrush(nullptr, RadiusCard, FVector2D(846.f, HeroHeight)));
+	HeroImage->SetBrush(RoundedImageBrush(nullptr, RadiusCard, FVector2D(HeroWidth, HeroHeight)));
 	HeroButton->SetContent(HeroImage);
 	if (UOverlaySlot* HeroButtonSlot = Hero->AddChildToOverlay(HeroButton))
 	{
@@ -188,29 +287,64 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 		HeroButtonSlot->SetVerticalAlignment(VAlign_Fill);
 	}
 
-	UBorder* Caption = MakeBox(WidgetTree, TEXT("HeroCaption"), Shade(), RadiusCard, FMargin(24.f, 14.f, 28.f, 16.f));
+	// Grande icone en filigrane (experience sans photo)
+	HeroArt = MakeIcon(WidgetTree, TEXT("HeroArt"), TEXT("cube"), 230.f, FLinearColor(1.f, 1.f, 1.f, 0.16f));
+	if (UOverlaySlot* ArtSlot = Hero->AddChildToOverlay(HeroArt))
+	{
+		ArtSlot->SetHorizontalAlignment(HAlign_Right);
+		ArtSlot->SetVerticalAlignment(VAlign_Center);
+		ArtSlot->SetPadding(FMargin(0.f, 0.f, 150.f, 0.f));
+	}
+	// Degrade sombre en bas : le titre reste lisible meme sur une photo claire
+	UImage* HeroShade = WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(), TEXT("HeroShade"));
+	{
+		FSlateBrush ShadeBrush = RoundedBrush(FLinearColor::White, RadiusCard);
+		ShadeBrush.SetResourceObject(LoadObject<UTexture2D>(nullptr, TEXT("/Game/Showroom/UI/Icons/T_UI_ShadeBottom.T_UI_ShadeBottom"), nullptr, LOAD_NoWarn | LOAD_Quiet));
+		HeroShade->SetBrush(ShadeBrush);
+		HeroShade->SetVisibility(ESlateVisibility::HitTestInvisible);
+	}
+	if (UOverlaySlot* ShadeSlot = Hero->AddChildToOverlay(HeroShade))
+	{
+		ShadeSlot->SetHorizontalAlignment(HAlign_Fill);
+		ShadeSlot->SetVerticalAlignment(VAlign_Fill);
+	}
+
+	UBorder* Caption = MakeBox(WidgetTree, TEXT("HeroCaption"), FLinearColor::Transparent, RadiusCard, FMargin(8.f, 0.f));
+	HeroCaption = Caption;
 	Caption->SetVisibility(ESlateVisibility::HitTestInvisible); // le clic passe au carrousel
 	UVerticalBox* CaptionTexts = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("HeroCaptionTexts"));
 	Caption->SetContent(CaptionTexts);
-	HeroTitle = ShowroomStyle::MakeText(WidgetTree, TEXT("HeroTitle"), FText::FromString(TEXT("EXPÉRIENCE")), 40, TextMain(), TEXT("Bold"), false);
+	HeroTitle = ShowroomStyle::MakeText(WidgetTree, TEXT("HeroTitle"), FText::FromString(TEXT("EXPÉRIENCE")), 54, TextMain(), TEXT("Bold"), false);
 	CaptionTexts->AddChildToVerticalBox(HeroTitle);
-	HeroSubtitle = ShowroomStyle::MakeText(WidgetTree, TEXT("HeroSubtitle"), FText::FromString(TEXT("Sous-titre")), 22, TextMuted(), TEXT("Regular"), false);
+	HeroSubtitle = ShowroomStyle::MakeText(WidgetTree, TEXT("HeroSubtitle"), FText::FromString(TEXT("Sous-titre")), 28, TextMuted(), TEXT("Regular"), false);
 	CaptionTexts->AddChildToVerticalBox(HeroSubtitle);
+	// "Decouvrir l'experience" : invite a cliquer (le carrousel entier est cliquable)
+	UBorder* Cta = MakeBox(WidgetTree, TEXT("HeroCta"), Accent(), 999.f, FMargin(20.f, 10.f, 26.f, 10.f));
+	HeroCta = Cta;
+	UTextBlock* CtaText = nullptr;
+	Cta->SetContent(MakeIconLabel(WidgetTree, TEXT("HeroCtaLabel"), TEXT("play"), DiscoverText, 24, TextMain(), TEXT("Bold"), CtaText, 10.f));
+	HeroCtaText = CtaText;
+	UHorizontalBox* CtaRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("HeroCtaRow"));
+	CtaRow->AddChildToHorizontalBox(Cta);
+	if (UVerticalBoxSlot* CtaSlot = CaptionTexts->AddChildToVerticalBox(CtaRow))
+	{
+		CtaSlot->SetPadding(FMargin(0.f, 14.f, 0.f, 0.f));
+	}
 	if (UOverlaySlot* CaptionSlot = Hero->AddChildToOverlay(Caption))
 	{
 		CaptionSlot->SetHorizontalAlignment(HAlign_Left);
 		CaptionSlot->SetVerticalAlignment(VAlign_Bottom);
-		CaptionSlot->SetPadding(FMargin(96.f, 0.f, 0.f, 22.f));
+		CaptionSlot->SetPadding(FMargin(100.f, 0.f, 0.f, 26.f));
 	}
 
-	HeroPrev = MakeArrow(WidgetTree, TEXT("HeroPrev"), TEXT("‹"), 60, Shade());
+	HeroPrev = MakeArrow(WidgetTree, TEXT("HeroPrev"), TEXT("chevron_left"), 60, Shade());
 	if (UOverlaySlot* PrevSlot = Hero->AddChildToOverlay(HeroPrev))
 	{
 		PrevSlot->SetHorizontalAlignment(HAlign_Left);
 		PrevSlot->SetVerticalAlignment(VAlign_Center);
 		PrevSlot->SetPadding(FMargin(16.f, 0.f, 0.f, 0.f));
 	}
-	HeroNext = MakeArrow(WidgetTree, TEXT("HeroNext"), TEXT("›"), 60, Shade());
+	HeroNext = MakeArrow(WidgetTree, TEXT("HeroNext"), TEXT("chevron_right"), 60, Shade());
 	if (UOverlaySlot* NextSlot = Hero->AddChildToOverlay(HeroNext))
 	{
 		NextSlot->SetHorizontalAlignment(HAlign_Right);
@@ -232,27 +366,32 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 	UHorizontalBox* RowHeader = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("RowHeader"));
 	if (UVerticalBoxSlot* HeaderSlot = Home->AddChildToVerticalBox(RowHeader))
 	{
-		HeaderSlot->SetPadding(FMargin(0.f, 22.f, 0.f, 14.f));
+		HeaderSlot->SetPadding(FMargin(0.f, 24.f, 0.f, 16.f));
 	}
-	TitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("TitleText"), Title, 28, TextMain(), TEXT("Bold"), false);
+	if (UHorizontalBoxSlot* ListIconSlot = RowHeader->AddChildToHorizontalBox(MakeIcon(WidgetTree, TEXT("ListIcon"), TEXT("grid"), 34.f, AccentText())))
+	{
+		ListIconSlot->SetVerticalAlignment(VAlign_Center);
+		ListIconSlot->SetPadding(FMargin(4.f, 0.f, 14.f, 0.f));
+	}
+	TitleText = ShowroomStyle::MakeText(WidgetTree, TEXT("TitleText"), Title, 34, TextMain(), TEXT("Bold"), false);
 	if (UHorizontalBoxSlot* TitleSlot = RowHeader->AddChildToHorizontalBox(TitleText))
 	{
 		TitleSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
 		TitleSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	RowPageText = ShowroomStyle::MakeText(WidgetTree, TEXT("RowPageText"), FText::FromString(TEXT("1 / 1")), 20, TextDim(), TEXT("Bold"), false);
+	RowPageText = ShowroomStyle::MakeText(WidgetTree, TEXT("RowPageText"), FText::FromString(TEXT("1 / 1")), 24, TextDim(), TEXT("Bold"), false);
 	if (UHorizontalBoxSlot* PageSlot = RowHeader->AddChildToHorizontalBox(RowPageText))
 	{
 		PageSlot->SetVerticalAlignment(VAlign_Center);
 		PageSlot->SetPadding(FMargin(0.f, 0.f, 14.f, 0.f));
 	}
-	RowPrev = MakeArrow(WidgetTree, TEXT("RowPrev"), TEXT("‹"), 40, Surface());
+	RowPrev = MakeArrow(WidgetTree, TEXT("RowPrev"), TEXT("chevron_left"), 40, Surface());
 	if (UHorizontalBoxSlot* RowPrevSlot = RowHeader->AddChildToHorizontalBox(RowPrev))
 	{
 		RowPrevSlot->SetVerticalAlignment(VAlign_Center);
 		RowPrevSlot->SetPadding(FMargin(0.f, 0.f, 10.f, 0.f));
 	}
-	RowNext = MakeArrow(WidgetTree, TEXT("RowNext"), TEXT("›"), 40, Surface());
+	RowNext = MakeArrow(WidgetTree, TEXT("RowNext"), TEXT("chevron_right"), 40, Surface());
 	if (UHorizontalBoxSlot* RowNextSlot = RowHeader->AddChildToHorizontalBox(RowNext))
 	{
 		RowNextSlot->SetVerticalAlignment(VAlign_Center);
@@ -274,13 +413,50 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 	// ---- 2, 3, 4 : pages de texte ----
 	UTextBlock* TitleOut = nullptr;
 	UTextBlock* BodyOut = nullptr;
-	PageSwitcher->AddChild(MakeTextPage(WidgetTree, TEXT("ProjectPage"), TEXT("ProjectTitle"), TEXT("ProjectBody"), ProjectTitleText, ProjectBodyText, TitleOut, BodyOut));
+	PageSwitcher->AddChild(MakeTextPage(WidgetTree, TEXT("ProjectPage"), TEXT("ProjectTitle"), TEXT("ProjectBody"), ProjectTitleText, ProjectBodyText, TitleOut, BodyOut, TEXT("info")));
 	ProjectTitle = TitleOut;
 	ProjectBody = BodyOut;
-	PageSwitcher->AddChild(MakeTextPage(WidgetTree, TEXT("HelpPage"), TEXT("HelpTitle"), TEXT("HelpBody"), HelpTitleText, HelpBodyText, TitleOut, BodyOut));
-	HelpTitle = TitleOut;
-	HelpBody = BodyOut;
-	PageSwitcher->AddChild(MakeTextPage(WidgetTree, TEXT("SettingsPage"), TEXT("SettingsTitle"), TEXT("SettingsBody"), SettingsTitleText, SettingsBodyText, TitleOut, BodyOut));
+	{
+		// Aide : une carte illustree par geste
+		UVerticalBox* HelpPage = WidgetTree->ConstructWidget<UVerticalBox>(UVerticalBox::StaticClass(), TEXT("HelpPage"));
+		if (UVerticalBoxSlot* HelpTitleSlot = HelpPage->AddChildToVerticalBox(MakePageTitle(WidgetTree, TEXT("HelpTitle"), TEXT("help"), HelpTitleText, TitleOut)))
+		{
+			HelpTitleSlot->SetPadding(FMargin(0.f, 0.f, 0.f, 14.f));
+		}
+		HelpTitle = TitleOut;
+		HelpBody = ShowroomStyle::MakeText(WidgetTree, TEXT("HelpBody"), HelpBodyText, 26, TextMuted());
+		if (UVerticalBoxSlot* HelpBodySlot = HelpPage->AddChildToVerticalBox(HelpBody))
+		{
+			HelpBodySlot->SetPadding(FMargin(4.f, 0.f, 0.f, 18.f));
+		}
+		UUniformGridPanel* Grid = WidgetTree->ConstructWidget<UUniformGridPanel>(UUniformGridPanel::StaticClass(), TEXT("HelpCards"));
+		Grid->SetSlotPadding(FMargin(8.f));
+		struct FCard { const TCHAR* Icon; const TCHAR* Title; const TCHAR* Text; };
+		const FCard Cards[] = {
+			{ TEXT("pointer"), TEXT("Cliquer"), TEXT("Visez avec le laser, puis gâchette.") },
+			{ TEXT("move"), TEXT("Marcher"), TEXT("Joystick gauche.") },
+			{ TEXT("refresh"), TEXT("Tourner"), TEXT("Joystick droit.") },
+			{ TEXT("pin"), TEXT("Se téléporter"), TEXT("Gâchette droite, sans viser d'écran.") },
+			{ TEXT("hand"), TEXT("Attraper"), TEXT("Bouton de côté (grip) près d'un objet.") },
+			{ TEXT("grid"), TEXT("Menu de la main"), TEXT("Bouton Y ou B.") },
+			{ TEXT("steps"), TEXT("Déplacer un écran"), TEXT("Visez la barre dessous, gâchette maintenue.") },
+			{ TEXT("play"), TEXT("Vivre une expérience"), TEXT("Suivez le GPS, puis « Lancer l'expérience ».") },
+		};
+		for (int32 i = 0; i < UE_ARRAY_COUNT(Cards); ++i)
+		{
+			if (UUniformGridSlot* CardSlot = Grid->AddChildToUniformGrid(MakeHelpCard(WidgetTree, Cards[i].Icon, Cards[i].Title, Cards[i].Text), i / 2, i % 2))
+			{
+				CardSlot->SetHorizontalAlignment(HAlign_Fill);
+				CardSlot->SetVerticalAlignment(VAlign_Fill);
+			}
+		}
+		if (UVerticalBoxSlot* GridSlot = HelpPage->AddChildToVerticalBox(Grid))
+		{
+			GridSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		}
+		PageSwitcher->AddChild(HelpPage);
+	}
+	PageSwitcher->AddChild(MakeTextPage(WidgetTree, TEXT("SettingsPage"), TEXT("SettingsTitle"), TEXT("SettingsBody"), SettingsTitleText, SettingsBodyText, TitleOut, BodyOut, TEXT("gear")));
 	SettingsTitle = TitleOut;
 	SettingsBody = BodyOut;
 
@@ -290,14 +466,32 @@ void UExperienceSelectorWidget::BuildDefaultLayout()
 	{
 		StatusSlot->SetPadding(FMargin(0.f, 16.f, 0.f, 0.f));
 	}
-	StatusText = ShowroomStyle::MakeText(WidgetTree, TEXT("StatusText"), IdleStatus, 22, AccentText(), TEXT("Regular"));
-	if (UHorizontalBoxSlot* TextSlot = StatusBar->AddChildToHorizontalBox(StatusText))
+	UBorder* StatusPill = MakeBox(WidgetTree, TEXT("StatusPill"), SurfaceDeep(), 999.f, FMargin(18.f, 10.f, 26.f, 10.f));
+	if (UHorizontalBoxSlot* PillSlot = StatusBar->AddChildToHorizontalBox(StatusPill))
 	{
-		TextSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+		PillSlot->SetVerticalAlignment(VAlign_Center);
+	}
+	UHorizontalBox* StatusRow = WidgetTree->ConstructWidget<UHorizontalBox>(UHorizontalBox::StaticClass(), TEXT("StatusRow"));
+	StatusPill->SetContent(StatusRow);
+	StatusIcon = MakeIcon(WidgetTree, TEXT("StatusIcon"), TEXT("pointer"), 32.f, AccentText());
+	if (UHorizontalBoxSlot* StatusIconSlot = StatusRow->AddChildToHorizontalBox(StatusIcon))
+	{
+		StatusIconSlot->SetVerticalAlignment(VAlign_Center);
+		StatusIconSlot->SetPadding(FMargin(0.f, 0.f, 14.f, 0.f));
+	}
+	StatusText = ShowroomStyle::MakeText(WidgetTree, TEXT("StatusText"), IdleStatus, 26, TextMain(), TEXT("Regular"), false);
+	if (UHorizontalBoxSlot* TextSlot = StatusRow->AddChildToHorizontalBox(StatusText))
+	{
 		TextSlot->SetVerticalAlignment(VAlign_Center);
 	}
-	StopButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("StopButton"), Surface(), SurfaceHover(), 999.f, FMargin(24.f, 10.f));
-	StopButton->SetContent(ShowroomStyle::MakeText(WidgetTree, TEXT("StopButtonText"), FText::FromString(TEXT("Arrêter le guidage")), 22, TextMain(), TEXT("Bold"), false));
+	USpacer* StatusSpace = WidgetTree->ConstructWidget<USpacer>(USpacer::StaticClass(), TEXT("StatusSpace"));
+	if (UHorizontalBoxSlot* SpaceSlot2 = StatusBar->AddChildToHorizontalBox(StatusSpace))
+	{
+		SpaceSlot2->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+	}
+	StopButton = ShowroomStyle::MakeButton(WidgetTree, TEXT("StopButton"), Surface(), SurfaceHover(), 999.f, FMargin(22.f, 10.f, 26.f, 10.f));
+	UTextBlock* StopText = nullptr;
+	StopButton->SetContent(MakeIconLabel(WidgetTree, TEXT("StopButtonLabel"), TEXT("stop"), FText::FromString(TEXT("Arrêter le guidage")), 24, TextMain(), TEXT("Bold"), StopText, 10.f));
 	if (UHorizontalBoxSlot* StopSlot = StatusBar->AddChildToHorizontalBox(StopButton))
 	{
 		StopSlot->SetVerticalAlignment(VAlign_Center);
@@ -324,6 +518,10 @@ void UExperienceSelectorWidget::NativeConstruct()
 	if (RowNext)        RowNext->OnClicked.AddUniqueDynamic(this, &UExperienceSelectorWidget::HandleRowNext);
 
 	// Textes des pages (modifiables dans les Class Defaults du WBP, sans toucher a la mise en page)
+	if (WelcomeTitle)    WelcomeTitle->SetText(WelcomeTitleText);
+	if (WelcomeSubtitle) WelcomeSubtitle->SetText(WelcomeSubtitleText);
+	if (TipLabel)        TipLabel->SetText(TipText);
+	if (HeroCtaText)     HeroCtaText->SetText(DiscoverText);
 	if (TitleText)     TitleText->SetText(Title);
 	if (ProjectTitle)  ProjectTitle->SetText(ProjectTitleText);
 	if (ProjectBody)   ProjectBody->SetText(ProjectBodyText);
@@ -345,6 +543,20 @@ void UExperienceSelectorWidget::NativeConstruct()
 	}
 
 	EnsureSheet();
+
+	// Survol : les boutons se soulevent legerement (+ petit son)
+	for (UButton* Tab : { TabExperiences.Get(), TabProject.Get(), TabHelp.Get(), TabSettings.Get() })
+	{
+		AnimateHover(Tab, Tab, 1.03f, 0.f);
+	}
+	for (UButton* Arrow : { HeroPrev.Get(), HeroNext.Get(), RowPrev.Get(), RowNext.Get(), StopButton.Get() })
+	{
+		AnimateHover(Arrow, Arrow, 1.1f, 0.f);
+	}
+	if (HeroButton && HeroCta)
+	{
+		AnimateHover(HeroCta, HeroButton, 1.06f, -4.f);
+	}
 
 	if (ANavigatorSystem* Nav = GetNavigator())
 	{
@@ -475,6 +687,7 @@ void UExperienceSelectorWidget::RefreshList()
 				continue;
 			}
 			Entry->SetZone(Zone);
+			Entry->SetAccent(ShowroomStyle::ExperienceColor(Entries.Num()), Entries.Num() + 1);
 			Entry->OnSelected.AddUObject(this, &UExperienceSelectorWidget::HandleEntrySelected);
 			Entries.Add(Entry);
 			RowItems.Add(Entry);
@@ -498,7 +711,7 @@ void UExperienceSelectorWidget::RefreshList()
 			UTextBlock* Plus = ShowroomStyle::MakeText(WidgetTree, NAME_None, FText::FromString(TEXT("+")), 64, TextDim(), TEXT("Light"), false);
 			Plus->SetJustification(ETextJustify::Center);
 			Column->AddChildToVerticalBox(Plus);
-			UTextBlock* Soon = ShowroomStyle::MakeText(WidgetTree, NAME_None, ComingSoonLabel, 20, TextDim(), TEXT("Regular"), false);
+			UTextBlock* Soon = ShowroomStyle::MakeText(WidgetTree, NAME_None, ComingSoonLabel, 24, TextDim(), TEXT("Regular"), false);
 			Soon->SetJustification(ETextJustify::Center);
 			Column->AddChildToVerticalBox(Soon);
 			RowItems.Add(Tile);
@@ -506,6 +719,7 @@ void UExperienceSelectorWidget::RefreshList()
 
 		for (int32 i = 0; i < RowItems.Num(); ++i)
 		{
+			AnimateIn(RowItems[i], 0.15f + 0.07f * i, FVector2D(0.f, 40.f), 0.4f); // apparition en cascade
 			UPanelSlot* ItemSlot = EntryList->AddChild(RowItems[i]);
 			if (UHorizontalBoxSlot* BoxSlot = Cast<UHorizontalBoxSlot>(ItemSlot))
 			{
@@ -585,10 +799,27 @@ void UExperienceSelectorWidget::UpdateHero()
 {
 	const ADetectionZone* Zone = Featured.IsValidIndex(HeroIndex) ? Featured[HeroIndex].Get() : nullptr;
 
+	UTexture2D* Photo = Zone ? Zone->Info.Photo.Get() : nullptr;
 	if (HeroImage)
 	{
 		const FVector2D Size = HeroImage->GetBrush().ImageSize;
-		HeroImage->SetBrush(ShowroomStyle::RoundedImageBrush(Zone ? Zone->Info.Photo.Get() : nullptr, ShowroomStyle::RadiusCard, Size));
+		FSlateBrush Brush = ShowroomStyle::RoundedImageBrush(Photo, ShowroomStyle::RadiusCard, Size);
+		if (!Photo)
+		{
+			// Pas de photo : la couleur de l'experience (la meme que sa vignette)
+			const int32 Order = Zone ? Entries.IndexOfByPredicate([Zone](const UExperienceEntryWidget* E) { return E && E->GetZone() == Zone; }) : 0;
+			Brush.TintColor = FSlateColor(ShowroomStyle::ExperienceColor(FMath::Max(Order, 0)) * 0.75f);
+		}
+		HeroImage->SetBrush(Brush);
+		AnimateIn(HeroImage, 0.f, FVector2D::ZeroVector, 0.45f); // fondu entre deux experiences
+	}
+	if (HeroArt)
+	{
+		HeroArt->SetVisibility(Photo ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+	if (HeroCaption)
+	{
+		AnimateIn(HeroCaption, 0.08f, FVector2D(-40.f, 0.f), 0.45f);
 	}
 	if (HeroTitle)    HeroTitle->SetText(Zone ? Zone->Info.Title.ToUpper() : FText::FromString(TEXT("Aucune expérience")));
 	if (HeroSubtitle) HeroSubtitle->SetText(Zone ? Zone->Info.Subtitle : FText::GetEmpty());
@@ -656,6 +887,7 @@ void UExperienceSelectorWidget::ShowPage(EShowroomHubPage Page)
 	if (PageSwitcher)
 	{
 		PageSwitcher->SetActiveWidgetIndex(static_cast<int32>(Page));
+		AnimateIn(PageSwitcher->GetActiveWidget(), 0.f, FVector2D(0.f, 24.f), 0.3f);
 	}
 	CarouselTimer = 0.f;
 	UpdateTabs();
@@ -765,6 +997,10 @@ void UExperienceSelectorWidget::HandleGuideArrived(AActor* /*Target*/)
 	Selected = nullptr;
 	SetStatus(ArrivedStatus);
 	UpdateSelection();
+	if (StatusIcon)
+	{
+		ShowroomStyle::SetIcon(StatusIcon, TEXT("check"));
+	}
 }
 
 void UExperienceSelectorWidget::HandleGuideStopped(AActor* /*Target*/)
@@ -789,6 +1025,19 @@ void UExperienceSelectorWidget::UpdateSelection()
 	if (StopButton)
 	{
 		StopButton->SetVisibility(Selected.IsValid() ? ESlateVisibility::Visible : ESlateVisibility::Hidden);
+	}
+	if (StatusIcon)
+	{
+		if (Selected.IsValid())
+		{
+			ShowroomStyle::SetIcon(StatusIcon, TEXT("pin"));
+			AnimatePulse(StatusIcon, 1.25f, 1.1f); // le GPS est actif : l'icone "respire"
+		}
+		else
+		{
+			StopPulse(StatusIcon);
+			ShowroomStyle::SetIcon(StatusIcon, TEXT("pointer"));
+		}
 	}
 	if (Sheet)
 	{

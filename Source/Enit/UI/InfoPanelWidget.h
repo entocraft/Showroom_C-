@@ -9,6 +9,7 @@ class UTextBlock;
 class UImage;
 class UTexture2D;
 class UButton;
+class UPanelWidget;
 class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInfoPanelActionSignature);
@@ -117,6 +118,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Fiche")
 	const FShowroomInfo& GetInfo() const { return Info; }
 
+	/** Progression des etapes (barre de segments) : Current = 0..Count-1. Count = 0 : barre cachee. */
+	UFUNCTION(BlueprintCallable, Category = "Fiche")
+	void SetStepProgress(int32 Current, int32 Count);
+
+	/** L'action est "Terminer" (icone carre) plutot que "Lancer" (icone lecture, qui respire pour attirer l'oeil). */
+	UFUNCTION(BlueprintCallable, Category = "Fiche")
+	void SetActionIsStop(bool bStop);
+
+	virtual void PlayIntro() override;
+
 	/** Affiche / cache le bouton d'action en bas de la fiche (ex : "Lancer l'experience") et change son texte. */
 	UFUNCTION(BlueprintCallable, Category = "Fiche")
 	void SetActionButton(bool bVisible, const FText& Label);
@@ -205,6 +216,16 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StepText;
 
+	/** Barre de progression des etapes (segments ajoutes par le code). */
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
+	TObjectPtr<UPanelWidget> StepProgress;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
+	TObjectPtr<UImage> ActionButtonIcon;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> ContentColumn;
+
 	/** Pastille au-dessus du titre (Info > Tag) ; TagBox est cache si le tag est vide. */
 	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
 	TObjectPtr<UWidget> TagBox;
@@ -225,6 +246,9 @@ protected:
 	FText ActionLabel;
 
 	bool bNavVisible = false;
+	bool bActionIsStop = false;
+	int32 ProgressCurrent = -1;
+	int32 ProgressCount = 0;
 	bool bCanPrevious = false;
 	bool bCanNext = false;
 	FText StepLabel;

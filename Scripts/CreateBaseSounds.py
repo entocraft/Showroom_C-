@@ -159,6 +159,15 @@ def s_ui_click():
     return normalize(out, 0.4)
 
 
+def s_ui_hover():
+    """Petit "tic" tres doux quand le laser survole un bouton."""
+    out = []
+    for n in range(int(0.06 * SR)):
+        t = n / SR
+        out.append(math.exp(-70 * t) * math.sin(2 * math.pi * 1500 * t) * min(1.0, t / 0.004))
+    return normalize(out, 0.22)
+
+
 def s_ambience():
     """Nappe douce de 8 s qui boucle sans coupure (frequences multiples de 1/8 Hz)."""
     seconds = 8.0
@@ -183,6 +192,7 @@ SOUNDS = {
     "S_SpotActivate": s_spot_activate,
     "S_SpotReached": s_spot_reached,
     "S_UIClick": s_ui_click,
+    "S_UIHover": s_ui_hover,
     "S_Ambience": s_ambience,
 }
 

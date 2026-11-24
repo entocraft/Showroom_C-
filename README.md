@@ -289,12 +289,36 @@ le champ *Entry Class* de `WBP_ExperienceSelector` (Class Defaults). Un WBP vid�
 Les WBP ont été créés par `Scripts/CreateWidgetBlueprints.py` (ne remplace jamais un WBP existant ;
 supprimer un WBP puis relancer le script le remet à zéro).
 
+## Icônes et animations des interfaces
+
+- **Icônes** : `Content/Showroom/UI/Icons` (T_Icon_grid, pin, clock, play, help, gear, hand…), dessinées par
+  `Scripts/CreateIcons.py` (blanches, colorées par le code). Pour en ajouter une : une fonction de forme dans le
+  script, ou importer ton propre PNG blanc sur fond transparent sous le nom `T_Icon_<nom>`.
+  En C++ : `ShowroomStyle::MakeIcon(Tree, Nom, TEXT("pin"), Taille, Couleur)` / `MakeIconLabel(...)`.
+- **Animations** (sans timeline, dans `UShowroomWidget`, utilisables aussi depuis un Widget Blueprint) :
+  `AnimateHover` (l'élément se soulève au survol du laser, avec un petit son), `AnimateIn` (apparition en fondu +
+  glissement, en cascade pour les vignettes), `AnimatePulse` (respiration : GPS, « Lancer l'expérience »),
+  `PlayIntro` (rejouée quand un écran, une fiche ou une étiquette apparaît).
+- **Accueil** : bienvenue, carrousel avec dégradé et « Découvrir l'expérience », vignettes colorées et numérotées
+  (couleur = `ShowroomStyle::ExperienceColor`, utilisée tant qu'une expérience n'a pas de photo), badge GPS,
+  page d'aide illustrée, barre d'état du GPS. **Fiche de zone** : barre de progression des étapes, boutons à icônes.
+- Son de survol : Réglages → *Sons* → `SoundUIHover`.
+
 ## Écran « Choisir une expérience » et GPS
 
 `Ecran_ChoixExperience`, devant le point d'apparition, liste toutes les zones d'expérience (titre, sous-titre et photo
 de leur fiche *Info*). **Viser une expérience + gâchette** : le **trait GPS** au sol guide le joueur jusqu'à elle
 (jusqu'au *Start Point* de la zone) ; il s'arrête quand le joueur entre dans la zone, et la fiche s'ouvre.
 « Arrêter le guidage » l'annule. Placé par `Scripts/CreateSpawnScreen.py`.
+
+Écran large (1920 × 1000 px, 2,10 m) : les 4 expériences et la vignette « Prochainement » tiennent sur une ligne
+(*Tiles Per Page* = 5). Les mises en page de l'accueil, de la fiche d'expérience et de la fiche de zone viennent du C++
+(`ExperienceSelectorWidget`, `ExperienceSheetWidget`, `InfoPanelWidget`, charte dans `ShowroomStyle`) :
+après les avoir modifiées, `Scripts/RebuildUI.py` refait les Widget Blueprints et des aperçus PNG dans `Saved/UIPreview`
+(lancer l'éditeur complet, voir l'en-tête du script ; les retouches faites à la main dans ces WBP sont écrasées).
+
+Déplacer un panneau (barre sous l'écran ou la fiche) ne déclenche jamais la téléportation : un appui de gâchette
+qui commence sur une interface ne téléporte pas, même si le laser quitte l'interface avant le relâchement.
 
 Le GPS ne suit plus automatiquement les NavigatorPoint au lancement (pour ne pas mélanger deux traits) :
 pour le retrouver, cocher *Start On Begin Play* sur le NavigatorSystem du niveau. En code : `ANavigatorSystem::GuideTo(Acteur)`.

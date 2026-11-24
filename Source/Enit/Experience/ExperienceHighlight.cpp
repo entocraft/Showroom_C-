@@ -68,7 +68,7 @@ AExperienceHighlight::AExperienceHighlight()
 	Label->SetDrawAtDesiredSize(true);
 	Label->SetPivot(FVector2D(0.5f, 1.f)); // pose sur l'objet par le bas
 	Label->SetTwoSided(true);
-	Label->SetWorldScale3D(FVector(0.035f));
+	Label->SetWorldScale3D(FVector(0.05f)); // lisible a 1-2 m
 	Label->SetCollisionEnabled(ECollisionEnabled::NoCollision); // le laser passe a travers
 	Label->SetTranslucentSortPriority(11);
 	Label->SetVisibility(false);
@@ -132,6 +132,7 @@ void AExperienceHighlight::Begin()
 	if (UExperienceLabelWidget* Widget = Cast<UExperienceLabelWidget>(Label->GetUserWidgetObject()))
 	{
 		Widget->SetTexts(LabelText, DetailsText);
+		Widget->PlayIntro();
 	}
 
 	Light->SetLightColor(Settings->HighlightColor);

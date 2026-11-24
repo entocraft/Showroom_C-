@@ -35,7 +35,7 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnSheetGps, ADetectionZone*);
  * Mise en page modifiable sans code : Content/Showroom/UI/WBP_ExperienceSheet. Garder les noms :
  * BackButton, GalleryImage, GalleryPrev, GalleryNext, GalleryCounter, TagBox, TagText, TitleText, SubtitleText,
  * DomainBox/DomainText, DurationBox/DurationText, LocationBox/LocationText, DescriptionText,
- * AuthorsTitle, AuthorList, GpsButton, GpsTitle, GpsSubtitle.
+ * AuthorsTitle, AuthorList, GpsButton, GpsTitle, GpsSubtitle, GpsIconImage, GalleryArt, LeftColumn, RightColumn.
  */
 UCLASS()
 class ENIT_API UExperienceSheetWidget : public UShowroomWidget
@@ -122,6 +122,11 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UButton> GpsButton;
 	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> GpsTitle;
 	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UTextBlock> GpsSubtitle;
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UImage> GpsIconImage;
+	/** Grande icone de la galerie quand l'experience n'a pas d'image. */
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UImage> GalleryArt;
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UWidget> LeftColumn;
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional)) TObjectPtr<UWidget> RightColumn;
 
 private:
 	void Refresh();

@@ -13,8 +13,8 @@
 
 namespace
 {
-	const FName OpacityParam(TEXT("Opacity"));
-	const FName ColorParam(TEXT("Color"));
+	const FName SpotOpacityParam(TEXT("Opacity"));
+	const FName SpotColorParam(TEXT("Color"));
 
 	constexpr float FloorOpacity = 0.75f;
 	constexpr float ColumnOpacity = 0.12f;
@@ -153,13 +153,13 @@ void AExperienceSpot::ApplyBrightness(float Brightness)
 	const FLinearColor Glow = Color * GlowStrength;
 	if (FloorMaterial)
 	{
-		FloorMaterial->SetVectorParameterValue(ColorParam, Glow);
-		FloorMaterial->SetScalarParameterValue(OpacityParam, FloorOpacity * Brightness);
+		FloorMaterial->SetVectorParameterValue(SpotColorParam, Glow);
+		FloorMaterial->SetScalarParameterValue(SpotOpacityParam, FloorOpacity * Brightness);
 	}
 	if (ColumnMaterial)
 	{
-		ColumnMaterial->SetVectorParameterValue(ColorParam, Glow);
-		ColumnMaterial->SetScalarParameterValue(OpacityParam, ColumnOpacity * Brightness);
+		ColumnMaterial->SetVectorParameterValue(SpotColorParam, Glow);
+		ColumnMaterial->SetScalarParameterValue(SpotOpacityParam, ColumnOpacity * Brightness);
 	}
 	Light->SetIntensity(LightIntensity * Brightness);
 }
