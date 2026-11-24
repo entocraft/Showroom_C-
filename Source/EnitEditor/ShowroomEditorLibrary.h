@@ -22,6 +22,16 @@ public:
 	static UObject* CreateWidgetBlueprintFromLayout(const FString& PackagePath, const FString& AssetName,
 		TSubclassOf<UUserWidget> ParentClass, bool bOverwrite = false);
 
+	/**
+	 * APERCU : dessine une interface dans une image PNG (sans lancer le jeu), avec les vraies donnees du niveau
+	 * ouvert dans l'editeur (zones d'experience). Utilise par Scripts/RebuildUI.py.
+	 *  - Page : pour l'ecran d'accueil (ExperienceSelectorWidget), la page a afficher
+	 *    (0 Experiences, 1 fiche de la 1re experience, 2 Notre projet, 3 Aide, 4 Parametres) ;
+	 *    pour la fiche des zones (InfoPanelWidget), la 1re zone d'experience est affichee.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Showroom|Editeur")
+	static bool RenderWidgetPreview(TSubclassOf<UUserWidget> WidgetClass, FVector2D Size, const FString& FilePath, int32 Page = 0);
+
 	/** Liste "Nom (Type)" des widgets d'un Widget Blueprint (verification par script). */
 	UFUNCTION(BlueprintCallable, Category = "Showroom|Editeur")
 	static TArray<FString> DescribeWidgetBlueprint(UObject* WidgetBlueprint);

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UI/ShowroomWidget.h"
+#include "Engine/Texture2D.h"
 #include "InfoPanelWidget.generated.h"
 
 class UTextBlock;
@@ -11,6 +12,28 @@ class UButton;
 class UWidget;
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FInfoPanelActionSignature);
+
+/** Un auteur (chercheur) d'une experience, affiche sur sa fiche. */
+USTRUCT(BlueprintType)
+struct ENIT_API FShowroomAuthor
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auteur")
+	FText Name = FText::FromString(TEXT("Prénom Nom"));
+
+	/** Son domaine / metier, affiche en bleu (ex : "Aerodynamique"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auteur")
+	FText Role;
+
+	/** Une ou deux phrases sur son role dans l'experience. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auteur", meta = (MultiLine = true))
+	FText Bio;
+
+	/** Photo carree (optionnelle : sinon ses initiales). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Auteur")
+	TObjectPtr<UTexture2D> Photo = nullptr;
+};
 
 /** Contenu d'une fiche info (ce qu'on voit sur le panneau). */
 USTRUCT(BlueprintType)
@@ -27,17 +50,57 @@ struct ENIT_API FShowroomInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche", meta = (MultiLine = true))
 	FText Description = FText::FromString(TEXT("Lorem ipsum"));
 
-	/** Photo affichee a gauche (optionnelle). */
+	/** Photo principale : vignette de l'ecran d'accueil et image de la fiche (optionnelle). */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche")
 	TObjectPtr<UTexture2D> Photo = nullptr;
+
+	// --- Fiche detaillee (ecran d'accueil facon Disney+) : tout est optionnel, vide = cache ---
+
+	/** Petite pastille au-dessus du titre (ex : "EXPERIENCE N°2"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee")
+	FText Tag;
+
+	/** Domaine (ex : "Aeronautique"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee")
+	FText Domain;
+
+	/** Duree (ex : "~ 15 min"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee")
+	FText Duration;
+
+	/** Ou se trouve l'experience (ex : "Zone 3", "Galerie"). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee")
+	FText Location;
+
+	/** Images supplementaires de la fiche (defilent apres Photo avec les fleches). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee")
+	TArray<TObjectPtr<UTexture2D>> Gallery;
+
+	/** Les chercheurs a l'origine de l'experience (4 au maximum sont affiches). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee", meta = (TitleProperty = "Name"))
+	TArray<FShowroomAuthor> Authors;
+
+	/** Mise en avant dans le grand carrousel de l'ecran d'accueil. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Fiche detaillee")
+	bool bFeatured = true;
+
+	/** Toutes les images de la fiche : Photo puis Gallery (sans les vides). */
+	TArray<UTexture2D*> GetImages() const
+	{
+		TArray<UTexture2D*> Images;
+		if (Photo) Images.Add(Photo);
+		for (UTexture2D* Image : Gallery) { if (Image) Images.AddUnique(Image); }
+		return Images;
+	}
 };
 
 /**
- * Remplace UI_InfoPanel ("Carte Perso") : la fiche info des zones.
+ * Remplace UI_InfoPanel ("Carte Perso") : la fiche info des zones (style de la maquette Figma de Hugo,
+ * en paysage : photo a gauche, textes et boutons a droite).
  *
  * Mise en page modifiable sans code : Content/Showroom/UI/WBP_InfoPanel.
  * Widgets remplis par le code (garder leur nom) : TitleText, SubtitleText, DescriptionText, PhotoImage,
- * ActionButton / ActionButtonText, StepNav, PreviousButton, NextButton, StepText.
+ * ActionButton / ActionButtonText, StepNav, PreviousButton, NextButton, StepText, TagBox / TagText, MetaText.
  */
 UCLASS()
 class ENIT_API UInfoPanelWidget : public UShowroomWidget
@@ -45,6 +108,8 @@ class ENIT_API UInfoPanelWidget : public UShowroomWidget
 	GENERATED_BODY()
 
 public:
+	UInfoPanelWidget(const FObjectInitializer& ObjectInitializer);
+
 	/** Met a jour le texte et la photo du panneau. */
 	UFUNCTION(BlueprintCallable, Category = "Fiche")
 	void SetInfo(const FShowroomInfo& NewInfo);
@@ -91,7 +156,7 @@ public:
 	int32 DescriptionFontSize = 22;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Apparence")
-	FVector2D PhotoSize = FVector2D(256.f, 256.f);
+	FVector2D PhotoSize = FVector2D(360.f, 548.f);
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Apparence")
 	FLinearColor ButtonColor = FLinearColor(0.1f, 0.45f, 0.9f, 1.f);
@@ -139,6 +204,17 @@ protected:
 
 	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
 	TObjectPtr<UTextBlock> StepText;
+
+	/** Pastille au-dessus du titre (Info > Tag) ; TagBox est cache si le tag est vide. */
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
+	TObjectPtr<UWidget> TagBox;
+
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> TagText;
+
+	/** "Domaine  •  Duree  •  Lieu". */
+	UPROPERTY(BlueprintReadOnly, Category = "Fiche", meta = (BindWidgetOptional))
+	TObjectPtr<UTextBlock> MetaText;
 
 	UFUNCTION() void HandleActionClicked() { OnActionClicked.Broadcast(); }
 	UFUNCTION() void HandlePreviousClicked() { OnPreviousClicked.Broadcast(); }
