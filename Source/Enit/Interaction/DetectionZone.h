@@ -30,6 +30,24 @@ enum class EZoneShape : uint8
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FDetectionZoneSignature, APawn*, Player);
+
+/** Ordres envoyes au serveur pour piloter une experience partagee. */
+UENUM()
+enum class EZoneCommand : uint8
+{
+	Start, Stop, Next, Previous, GoTo
+};
+
+/** Etat d'une experience, decide par le serveur et recopie chez tous les joueurs. */
+USTRUCT()
+struct FZoneNetState
+{
+	GENERATED_BODY()
+
+	UPROPERTY() bool bRunning = false;
+	UPROPERTY() int32 Step = -1;
+	UPROPERTY() uint8 Version = 0;   // force la mise a jour meme si l'etat revient au meme
+};
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FExperienceStepSignature, int32, StepIndex);
 
 /**
@@ -173,6 +191,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Experience")
 	bool IsExperienceRunning() const { return bExperienceRunning; }
 
+	/**
+	 * MULTIJOUEUR : execute un ordre sur le serveur (appele par le pawn du joueur qui a clique).
+	 * L'etat (en cours, etape) est ensuite recopie chez tous : chaque joueur DANS la zone suit la meme etape.
+	 */
+	void ExecuteCommand(EZoneCommand Command, int32 Arg);
+
 	/** Une experience est-elle en cours quelque part (n'importe quelle zone) ? */
 	static bool IsAnyExperienceRunning();
 
@@ -218,12 +242,46 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual void OnConstruction(const FTransform& Transform) override;
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	/** Le joueur entre / sort de la zone. */
 	void HandlePlayerEnter(APawn* Player);
 	void HandlePlayerExit(APawn* Player);
 
 private:
+	// --- Multijoueur ---
+
+	/** Etat partage de l'experience (serveur -> tous les joueurs). */
+	UPROPERTY(ReplicatedUsing = OnRep_NetState)
+	FZoneNetState NetState;
+
+	UFUNCTION()
+	void OnRep_NetState();
+
+	/** Envoie un ordre au serveur (ou l'execute directement en solo / sur l'hote). */
+	void SendCommand(EZoneCommand Command, int32 Arg);
+
+	/** Met l'experience locale en accord avec l'etat partage (si le joueur local y participe). */
+	void ApplyNetState();
+
+	/** Serveur : arrete l'experience quand plus personne n'est dans la zone. */
+	void CheckParticipants();
+
+	/** Partie "locale" de l'experience (lumieres, sons, fiche, narrateur...) chez ce joueur. */
+	void LocalStart(bool bTeleport);
+	void LocalStop();
+	void LocalGoToStep(int32 StepIndex);
+
+	/** Le joueur local s'eloigne de l'experience. */
+	void LeaveExperience();
+
+	/** Vrai si le joueur local est assez pres pour suivre l'experience. */
+	bool IsLocalPlayerInExperience() const;
+
+	bool bTeleportOnNextStart = false;
+	int32 EmptyChecks = 0;
+	FTimerHandle ParticipantsTimer;
+
 	/** Verifie regulierement si le joueur local est dans la zone. */
 	void CheckPresence();
 

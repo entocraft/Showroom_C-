@@ -12,6 +12,9 @@
 #include "Components/AudioComponent.h"
 #include "Core/ShowroomSettings.h"
 #include "Player/ShowroomPawn.h"
+#include "Net/UnrealNetwork.h"
+#include "GameFramework/GameStateBase.h"
+#include "GameFramework/PlayerState.h"
 #include "Enit.h"
 #include "Camera/CameraComponent.h"
 #include "Components/BoxComponent.h"
@@ -66,6 +69,11 @@ ADetectionZone::ADetectionZone()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = false; // ne tourne que pendant l'experience et les fondus
+
+	// Multijoueur : l'etat de l'experience (en cours, etape) est partage par le serveur.
+	bReplicates = true;
+	bAlwaysRelevant = true;
+	SetNetUpdateFrequency(10.f);
 
 	Box = CreateDefaultSubobject<UBoxComponent>(TEXT("Box"));
 	RootComponent = Box;
@@ -412,6 +420,12 @@ void ADetectionZone::HandlePlayerEnter(APawn* Player)
 		return;
 	}
 
+	// Multijoueur : un autre joueur a lance l'experience ici -> on la suit.
+	if (NetState.bRunning && !bExperienceRunning)
+	{
+		ApplyNetState();
+	}
+
 	if (AInfoMenu* Target = GetMenu())
 	{
 		// Un panneau partage affiche la fiche de la DERNIERE zone dans laquelle on est entre.
@@ -481,7 +495,207 @@ void ADetectionZone::ToggleExperience()
 	}
 }
 
+// ============================================================================
+// Multijoueur : ordres -> serveur -> etat partage -> chaque joueur
+// ============================================================================
+
+void ADetectionZone::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	DOREPLIFETIME(ADetectionZone, NetState);
+}
+
 void ADetectionZone::StartExperience()
+{
+	bTeleportOnNextStart = true; // celui qui lance est place au point de depart
+	if (NetState.bRunning)
+	{
+		ApplyNetState(); // deja lancee par un autre joueur : on la rejoint
+		return;
+	}
+	SendCommand(EZoneCommand::Start, -1);
+}
+
+void ADetectionZone::StopExperience()
+{
+	SendCommand(EZoneCommand::Stop, -1);
+}
+
+void ADetectionZone::NextStep()
+{
+	SendCommand(EZoneCommand::Next, CurrentStep);
+}
+
+void ADetectionZone::PreviousStep()
+{
+	SendCommand(EZoneCommand::Previous, CurrentStep);
+}
+
+void ADetectionZone::GoToStep(int32 StepIndex)
+{
+	SendCommand(EZoneCommand::GoTo, StepIndex);
+}
+
+void ADetectionZone::SendCommand(EZoneCommand Command, int32 Arg)
+{
+	if (HasAuthority())
+	{
+		ExecuteCommand(Command, Arg); // solo ou hote : directement
+	}
+	else if (AShowroomPawn* Pawn = Cast<AShowroomPawn>(UGameplayStatics::GetPlayerPawn(this, 0)))
+	{
+		Pawn->Server_ZoneCommand(this, static_cast<uint8>(Command), Arg); // client : on passe par son pawn
+	}
+}
+
+void ADetectionZone::ExecuteCommand(EZoneCommand Command, int32 Arg)
+{
+	if (!HasAuthority())
+	{
+		return;
+	}
+	FZoneNetState Next = NetState;
+	switch (Command)
+	{
+	case EZoneCommand::Start:
+		if (!Next.bRunning)
+		{
+			Next.bRunning = true;
+			Next.Step = Steps.Num() > 0 ? 0 : -1;
+		}
+		break;
+	case EZoneCommand::Stop:
+		Next.bRunning = false;
+		Next.Step = -1;
+		break;
+	case EZoneCommand::Next:
+		// Arg = l'etape vue par celui qui demande : si deux joueurs cliquent en meme temps, on n'avance qu'une fois.
+		if (Next.bRunning && Arg == Next.Step)
+		{
+			if (Next.Step + 1 < Steps.Num())
+			{
+				++Next.Step;
+			}
+			else if (bEndAfterLastStep)
+			{
+				Next.bRunning = false;
+				Next.Step = -1;
+			}
+		}
+		break;
+	case EZoneCommand::Previous:
+		if (Next.bRunning && Arg == Next.Step && Next.Step > 0)
+		{
+			--Next.Step;
+		}
+		break;
+	case EZoneCommand::GoTo:
+		if (Next.bRunning && Steps.Num() > 0)
+		{
+			Next.Step = FMath::Clamp(Arg, 0, Steps.Num() - 1);
+		}
+		break;
+	}
+	if (Next.bRunning == NetState.bRunning && Next.Step == NetState.Step)
+	{
+		return; // rien ne change
+	}
+	Next.Version = NetState.Version + 1;
+	NetState = Next;
+	ForceNetUpdate();
+	ApplyNetState(); // le serveur (hote / solo) applique aussi chez lui
+
+	// Serveur en reseau : surveille s'il reste quelqu'un dans la zone.
+	if (NetState.bRunning && GetNetMode() != NM_Standalone)
+	{
+		EmptyChecks = 0;
+		GetWorldTimerManager().SetTimer(ParticipantsTimer, this, &ADetectionZone::CheckParticipants, 1.f, true);
+	}
+	else
+	{
+		GetWorldTimerManager().ClearTimer(ParticipantsTimer);
+	}
+}
+
+void ADetectionZone::OnRep_NetState()
+{
+	ApplyNetState();
+}
+
+bool ADetectionZone::IsLocalPlayerInExperience() const
+{
+	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
+	if (!Player || !Player->IsLocallyControlled())
+	{
+		return false;
+	}
+	if (Shape == EZoneShape::Drawn)
+	{
+		return bPlayerInside;
+	}
+	return bPlayerInside || FVector::Dist2D(GetHeadLocation(Player), Box->GetComponentLocation()) <= ExperienceRadius;
+}
+
+void ADetectionZone::ApplyNetState()
+{
+	if (!NetState.bRunning)
+	{
+		bTeleportOnNextStart = false;
+		if (bExperienceRunning)
+		{
+			LocalStop();
+		}
+		return;
+	}
+	if (!bExperienceRunning)
+	{
+		// On ne suit l'experience que si on l'a lancee ou si on est dans la zone.
+		if (!bTeleportOnNextStart && !IsLocalPlayerInExperience())
+		{
+			return;
+		}
+		LocalStart(bTeleportOnNextStart);
+		bTeleportOnNextStart = false;
+	}
+	if (Steps.Num() > 0 && NetState.Step >= 0 && NetState.Step != CurrentStep)
+	{
+		LocalGoToStep(NetState.Step);
+	}
+}
+
+void ADetectionZone::CheckParticipants()
+{
+	if (!HasAuthority() || !NetState.bRunning)
+	{
+		GetWorldTimerManager().ClearTimer(ParticipantsTimer);
+		return;
+	}
+	bool bSomeoneInside = false;
+	if (const AGameStateBase* GameState = GetWorld()->GetGameState())
+	{
+		for (const APlayerState* PS : GameState->PlayerArray)
+		{
+			const APawn* Pawn = PS ? PS->GetPawn() : nullptr;
+			if (!Pawn)
+			{
+				continue;
+			}
+			const FVector Head = GetHeadLocation(Pawn);
+			if (IsPointInside(Head) || (Shape == EZoneShape::Box && FVector::Dist2D(Head, Box->GetComponentLocation()) <= ExperienceRadius))
+			{
+				bSomeoneInside = true;
+				break;
+			}
+		}
+	}
+	EmptyChecks = bSomeoneInside ? 0 : EmptyChecks + 1;
+	if (EmptyChecks >= 3)
+	{
+		ExecuteCommand(EZoneCommand::Stop, -1); // plus personne depuis 3 s
+	}
+}
+
+void ADetectionZone::LocalStart(bool bTeleport)
 {
 	if (bExperienceRunning)
 	{
@@ -489,7 +703,15 @@ void ADetectionZone::StartExperience()
 	}
 	if (GRunningExperience.IsValid() && GRunningExperience.Get() != this)
 	{
-		GRunningExperience->StopExperience();
+		// Une seule experience a la fois chez ce joueur.
+		if (GetNetMode() == NM_Standalone)
+		{
+			GRunningExperience->StopExperience();
+		}
+		else
+		{
+			GRunningExperience->LocalStop();
+		}
 	}
 	APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
 	if (!Player)
@@ -500,14 +722,17 @@ void ADetectionZone::StartExperience()
 	bExperienceRunning = true;
 	GRunningExperience = this;
 
-	// 1) Le joueur au centre de la zone
-	if (AShowroomPawn* ShowroomPlayer = Cast<AShowroomPawn>(Player))
+	// 1) Le joueur qui a lance l'experience est place au point de depart
+	if (bTeleport)
 	{
-		ShowroomPlayer->TeleportPlayerTo(GetStartPointOnFloor());
-	}
-	else
-	{
-		Player->SetActorLocation(GetStartPointOnFloor());
+		if (AShowroomPawn* ShowroomPlayer = Cast<AShowroomPawn>(Player))
+		{
+			ShowroomPlayer->TeleportPlayerTo(GetStartPointOnFloor());
+		}
+		else
+		{
+			Player->SetActorLocation(GetStartPointOnFloor());
+		}
 	}
 
 	// 2) Tout ce qui est hors de l'experience s'assombrit (fondu dans Tick)
@@ -529,18 +754,11 @@ void ADetectionZone::StartExperience()
 	}
 	AmbienceAudio = ShowroomAudio::Spawn2D(this, Settings->SoundAmbience.LoadSynchronous(), Settings->AmbienceVolume, 2.f);
 
-	// 3) Premiere etape
-	if (Steps.Num() > 0)
-	{
-		GoToStep(0);
-	}
-	else
-	{
-		UpdateMenuForStep();
-	}
+	// 3) L'etape (choisie par le serveur) est appliquee par ApplyNetState
+	UpdateMenuForStep();
 }
 
-void ADetectionZone::StopExperience()
+void ADetectionZone::LocalStop()
 {
 	if (!bExperienceRunning)
 	{
@@ -576,31 +794,7 @@ void ADetectionZone::StopExperience()
 	HideMenuIfOutside();
 }
 
-void ADetectionZone::NextStep()
-{
-	if (!bExperienceRunning)
-	{
-		return;
-	}
-	if (CurrentStep + 1 < Steps.Num())
-	{
-		GoToStep(CurrentStep + 1);
-	}
-	else if (bEndAfterLastStep)
-	{
-		StopExperience();
-	}
-}
-
-void ADetectionZone::PreviousStep()
-{
-	if (bExperienceRunning && CurrentStep > 0)
-	{
-		GoToStep(CurrentStep - 1);
-	}
-}
-
-void ADetectionZone::GoToStep(int32 StepIndex)
+void ADetectionZone::LocalGoToStep(int32 StepIndex)
 {
 	if (!bExperienceRunning || Steps.Num() == 0)
 	{
@@ -831,12 +1025,12 @@ void ADetectionZone::Tick(float DeltaSeconds)
 				OutsideTime = bPlayerInside ? 0.f : OutsideTime + DeltaSeconds;
 				if (OutsideTime > 1.f)
 				{
-					StopExperience();
+					LeaveExperience();
 				}
 			}
 			else if (FVector::Dist2D(GetHeadLocation(Player), Box->GetComponentLocation()) > ExperienceRadius)
 			{
-				StopExperience();
+				LeaveExperience();
 			}
 		}
 	}
@@ -983,5 +1177,19 @@ void ADetectionZone::UpdateGuide()
 		{
 			Guide->SetLookTarget(LookAt, UShowroomSettings::Get()->HighlightColor);
 		}
+	}
+}
+
+void ADetectionZone::LeaveExperience()
+{
+	// Solo : le joueur s'en va, l'experience s'arrete. En reseau : seulement chez lui
+	// (les autres continuent ; le serveur l'arrete quand la zone est vide).
+	if (GetNetMode() == NM_Standalone)
+	{
+		StopExperience();
+	}
+	else
+	{
+		LocalStop();
 	}
 }

@@ -25,7 +25,9 @@ public class Enit : ModuleRules
 			"Niagara",
 			"DeveloperSettings",
 			"NetCore",
-			"ProceduralMeshComponent"
+			"ProceduralMeshComponent",
+			"OnlineSubsystem",
+			"OnlineSubsystemUtils"
 		});
 	}
 }

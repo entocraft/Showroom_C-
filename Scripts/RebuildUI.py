@@ -62,6 +62,7 @@ if PREVIEWS:
         (selector, (1920, 1000), "3_NotreProjet.png", 2),
         (selector, (1920, 1000), "4_Aide.png", 3),
         (panel, (1000, 600), "5_FicheZone.png", 0),
+        (unreal.load_class(None, DEST + "/WBP_HandMenu.WBP_HandMenu_C"), (560, 760), "6_MenuMain.png", 0),
     ]
     for cls, size, file_name, page in shots:
         path = os.path.join(out, file_name)

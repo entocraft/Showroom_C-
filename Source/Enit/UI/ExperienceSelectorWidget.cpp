@@ -536,7 +536,7 @@ void UExperienceSelectorWidget::NativeConstruct()
 		if (UTexture2D* Logo = LogoTexture.LoadSynchronous())
 		{
 			LogoImage->SetBrushFromTexture(Logo, true);
-			LogoImage->SetDesiredSizeOverride(FVector2D(190.f, 190.f * Logo->GetSurfaceHeight() / FMath::Max(1.f, Logo->GetSurfaceWidth())));
+			LogoImage->SetDesiredSizeOverride(FVector2D(240.f, 240.f * Logo->GetSurfaceHeight() / FMath::Max(1.f, Logo->GetSurfaceWidth())));
 			LogoImage->SetVisibility(ESlateVisibility::HitTestInvisible);
 			if (LogoFallback) LogoFallback->SetVisibility(ESlateVisibility::Collapsed);
 		}

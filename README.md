@@ -323,6 +323,34 @@ qui commence sur une interface ne téléporte pas, même si le laser quitte l'in
 Le GPS ne suit plus automatiquement les NavigatorPoint au lancement (pour ne pas mélanger deux traits) :
 pour le retrouver, cocher *Start On Begin Play* sur le NavigatorSystem du niveau. En code : `ANavigatorSystem::GuideTo(Acteur)`.
 
+## Multijoueur (sessions et réplication)
+
+**Menu de la main** (bouton Menu / Y / B) → **Sessions multijoueur** :
+- **Héberger** : crée une session sur le réseau local et relance le niveau en serveur ; les autres peuvent entrer.
+- **Rechercher** : liste les sessions du réseau local ; viser une session + gâchette pour la **rejoindre**.
+- **Quitter la session** : revient seul dans le showroom (si on héberge, les autres sont déconnectés).
+- La page *Menu* affiche l'état (« Vous hébergez une session · 3 joueurs », « Connecté à … »).
+
+Réseau local sans compte ni service (`[OnlineSubsystem] DefaultPlatformService=Null` dans `Config/DefaultEngine.ini`).
+Les PC doivent être sur le même réseau ; au premier lancement, autoriser l'application dans le pare-feu Windows.
+Code : `Core/ShowroomSessions` (sous-système, utilisable partout), page du menu : `UI/HandMenuWidget`.
+
+**Ce qui est partagé entre les joueurs** :
+- les joueurs (tête, mains, doigts) avec **leur nom au-dessus de la tête** ;
+- les objets attrapables (attrapés via le serveur, vibration chez celui qui attrape) ;
+- **les expériences** : le serveur décide si une expérience tourne et à quelle étape. Tous les joueurs **dans la zone**
+  voient la même étape (lumières, objets mis en valeur, écrans) et entendent le narrateur ; « Suivant », « Précédent »,
+  « Lancer » ou « Terminer » marchent pour tout le monde, quel que soit le joueur qui clique. Celui qui lance est placé
+  au point de départ ; un joueur qui entre dans la zone pendant l'expérience la rejoint à l'étape en cours.
+  Elle s'arrête quand plus personne n'est dans la zone (3 s). Code : `ADetectionZone::ExecuteCommand` / `NetState`.
+- Restent propres à chaque joueur : le GPS, l'écran d'accueil, les menus, la position des écrans flottants.
+
+## Logo de l'écran d'accueil
+
+`Content/Showroom/UI/Textures/T_UI_LogoENIT`, importé depuis `Scripts/Assets/Logo_UTTOP-ENIT.jpg` par
+`Scripts/ImportLogo.py`. Pour changer de logo : remplacer l'image (même nom) et relancer le script, ou choisir une autre
+texture dans *Logo Texture* (Class Defaults de `WBP_ExperienceSelector`).
+
 ## Ajouter un objet attrapable
 
 - Le plus simple : glisser **GrabbableActor** dans le niveau et changer son *Mesh*.

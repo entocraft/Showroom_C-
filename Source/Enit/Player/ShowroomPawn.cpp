@@ -12,6 +12,12 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/WidgetInteractionComponent.h"
+#include "Components/WidgetComponent.h"
+#include "Haptics/HapticFeedbackEffect_Base.h"
+#include "Interaction/DetectionZone.h"
+#include "UI/ExperienceLabelWidget.h"
+#include "UI/ShowroomWidget.h"
+#include "GameFramework/PlayerState.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/OverlapResult.h"
@@ -70,6 +76,19 @@ AShowroomPawn::AShowroomPawn()
 	RemoteHead = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("RemoteHead"));
 	RemoteHead->SetupAttachment(Camera);
 	RemoteHead->SetOwnerNoSee(true); // on ne voit pas sa propre tete
+
+	NameTag = CreateDefaultSubobject<UWidgetComponent>(TEXT("NameTag"));
+	NameTag->SetupAttachment(RootComponent);
+	NameTag->SetUsingAbsoluteRotation(true);
+	NameTag->SetWidgetSpace(EWidgetSpace::World);
+	NameTag->SetWidgetClass(UExperienceLabelWidget::StaticClass());
+	NameTag->SetDrawAtDesiredSize(true);
+	NameTag->SetPivot(FVector2D(0.5f, 1.f));
+	NameTag->SetTwoSided(true);
+	NameTag->SetRelativeScale3D(FVector(0.04f));
+	NameTag->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	NameTag->SetOwnerNoSee(true); // on ne voit pas son propre nom
+	NameTag->SetVisibility(false);
 	RemoteHead->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	RemoteHead->SetRelativeScale3D(FVector(0.22f, 0.18f, 0.25f));
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
@@ -586,6 +605,12 @@ void AShowroomPawn::Server_Grab_Implementation(bool bLeft)
 	{
 		Multicast_SetPhysics(Prim, false);
 	}
+
+	// Le joueur (client) qui a attrape sent la vibration dans sa manette.
+	if (!IsLocallyControlled())
+	{
+		Client_GrabFeedback(bLeft);
+	}
 }
 
 void AShowroomPawn::Server_Release_Implementation(bool bLeft)
@@ -605,6 +630,64 @@ void AShowroomPawn::Server_Release_Implementation(bool bLeft)
 		}
 	}
 	Held = nullptr;
+}
+
+void AShowroomPawn::Server_ZoneCommand_Implementation(ADetectionZone* Zone, uint8 Command, int32 Arg)
+{
+	if (Zone && Command <= static_cast<uint8>(EZoneCommand::GoTo))
+	{
+		Zone->ExecuteCommand(static_cast<EZoneCommand>(Command), Arg);
+	}
+}
+
+void AShowroomPawn::Client_GrabFeedback_Implementation(bool bLeft)
+{
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	const UMotionControllerComponent* Hand = bLeft ? MotionControllerLeftGrip : MotionControllerRightGrip;
+	if (!PC || !Hand)
+	{
+		return;
+	}
+	// Meme effet que celui de l'objet (voir UShowroomGrabComponent::GrabHapticEffect).
+	if (const UShowroomGrabComponent* Grab = bLeft ? HeldLeft.Get() : HeldRight.Get(); Grab && Grab->GrabHapticEffect)
+	{
+		PC->PlayHapticEffect(Grab->GrabHapticEffect, bLeft ? EControllerHand::Left : EControllerHand::Right);
+	}
+	else if (UHapticFeedbackEffect_Base* Effect = LoadObject<UHapticFeedbackEffect_Base>(nullptr, TEXT("/Game/XRFramework/Haptics/GrabHapticEffect.GrabHapticEffect")))
+	{
+		PC->PlayHapticEffect(Effect, bLeft ? EControllerHand::Left : EControllerHand::Right);
+	}
+}
+
+void AShowroomPawn::UpdateNameTag()
+{
+	// Seulement pour les AUTRES joueurs : un nom au-dessus de leur tete.
+	const bool bShow = !IsLocallyControlled() && GetPlayerState() != nullptr && GetNetMode() != NM_Standalone;
+	NameTag->SetVisibility(bShow);
+	if (!bShow)
+	{
+		return;
+	}
+	const FString Name = GetPlayerState()->GetPlayerName();
+	if (Name != NameTagText)
+	{
+		if (UExperienceLabelWidget* Label = Cast<UExperienceLabelWidget>(NameTag->GetUserWidgetObject()))
+		{
+			NameTagText = Name;
+			Label->SetTexts(FText::FromString(Name), FText::GetEmpty());
+		}
+	}
+	// Au-dessus de la tete, tourne vers la camera du joueur local.
+	const FVector Head = Camera->GetComponentLocation();
+	NameTag->SetWorldLocation(Head + FVector(0.f, 0.f, 28.f));
+	if (const APlayerController* LocalPC = GetWorld()->GetFirstPlayerController())
+	{
+		if (const APawn* Viewer = LocalPC->GetPawn())
+		{
+			const FVector ToViewer = Viewer->GetPawnViewLocation() - Head;
+			NameTag->SetWorldRotation(FRotator(0.f, ToViewer.Rotation().Yaw, 0.f));
+		}
+	}
 }
 
 void AShowroomPawn::Multicast_SetPhysics_Implementation(UPrimitiveComponent* Component, bool bSimulate)
@@ -639,10 +722,8 @@ void AShowroomPawn::ToggleHandMenu(bool bLeft)
 	HandMenu = GetWorld()->SpawnActor<AHandMenu>(AHandMenu::StaticClass(), GetActorTransform(), Params);
 	if (HandMenu)
 	{
-		// Sur la manette (grip), un peu au-dessus, face au joueur.
-		HandMenu->AttachToComponent(bLeft ? MotionControllerLeftGrip : MotionControllerRightGrip, FAttachmentTransformRules::SnapToTargetNotIncludingScale);
-		HandMenu->SetActorRelativeLocation(FVector(5.f, 0.f, 8.f));
-		HandMenu->SetActorRelativeRotation(FRotator(30.f, 180.f, 0.f));
+		// Flotte au-dessus de la main (sans y etre colle) et la suit en douceur.
+		HandMenu->FollowHand(bLeft ? MotionControllerLeftGrip : MotionControllerRightGrip);
 		bHandMenuOnLeft = bLeft;
 	}
 }
@@ -823,6 +904,8 @@ void AShowroomPawn::Tick(float DeltaSeconds)
 		ApplyHandPose(HandLeft, ReplicatedTracking.LeftPose, Settings->bMirrorLeftHandAnimation);
 		ApplyHandPose(HandRight, ReplicatedTracking.RightPose, false);
 	}
+
+	UpdateNameTag();
 
 	// Le "corps" suit la tete (pour les DetectionZone).
 	const FVector Head = Camera->GetComponentLocation();

@@ -10,6 +10,8 @@ class UMotionControllerComponent;
 class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UWidgetInteractionComponent;
+class ADetectionZone;
+class UWidgetComponent;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UShowroomInput;
@@ -97,6 +99,10 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Composants")
 	TObjectPtr<UStaticMeshComponent> RemoteHead;
 
+	/** Etiquette avec le nom du joueur, au-dessus de sa tete (pour les autres joueurs). */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Composants")
+	TObjectPtr<UWidgetComponent> NameTag;
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Composants")
 	TObjectPtr<UMotionControllerComponent> MotionControllerLeftGrip;
 
@@ -156,6 +162,10 @@ public:
 		return Interaction == WidgetInteractionLeft ? bMenuPressedLeft : Interaction == WidgetInteractionRight ? bMenuPressedRight : false;
 	}
 
+	/** Multijoueur : transmet au serveur un ordre pour une experience (Lancer, Suivant...). */
+	UFUNCTION(Server, Reliable)
+	void Server_ZoneCommand(ADetectionZone* Zone, uint8 Command, int32 Arg);
+
 	/** Tourne le joueur autour de sa tete. */
 	UFUNCTION(BlueprintCallable, Category = "Showroom")
 	void TurnBy(float YawDegrees);
@@ -208,6 +218,13 @@ protected:
 	UFUNCTION(NetMulticast, Reliable)
 	void Multicast_SetPhysics(UPrimitiveComponent* Component, bool bSimulate);
 
+	/** Vibration "objet attrape" chez le joueur qui l'a attrape (le grab se fait sur le serveur). */
+	UFUNCTION(Client, Unreliable)
+	void Client_GrabFeedback(bool bLeft);
+
+	/** Nom du joueur au-dessus de la tete (visible par les autres). */
+	void UpdateNameTag();
+
 	// --- Menu ---
 	void ToggleHandMenu(bool bLeft);
 	void UpdateLaser(UWidgetInteractionComponent* Interaction, UStaticMeshComponent* Laser) const;
@@ -236,6 +253,7 @@ protected:
 	bool bThumbTouch[2] = { false, false };
 
 	bool bTeleportTraceActive = false;
+	FString NameTagText;
 	bool bTeleportBlockedThisPress = false; // l'appui sur la gachette a commence sur une interface
 	bool bValidTeleportLocation = false;
 	FVector ProjectedTeleportLocation = FVector::ZeroVector;
